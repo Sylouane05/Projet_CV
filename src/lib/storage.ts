@@ -5,15 +5,32 @@ export const DEFAULT_STATE: AppState = AppStateSchema.parse({
   profile: {
     fullName: "Ton Nom",
     headline: "Étudiant ingénieur ISEN – Recherche stage PFE (6 mois)",
+    city: "",
+    mobility: "",
+    email: "",
+    phone: "",
+    links: [],
+    summary: "",
+    keywords: [],
+
+    education: [],
+    languages: [],
+    certifications: [],
+
+    photoAssetId: null,
   },
   experiences: [],
   projects: [],
+  skills: [],
+
   resumeVariants: [
     {
       id: crypto.randomUUID(),
       name: "CV Général",
       selectedExperienceIds: [],
       selectedProjectIds: [],
+      selectedSkillIds: [],
+      atsKeywords: [],
       sectionOrder: [
         "SUMMARY",
         "SKILLS",
@@ -28,12 +45,21 @@ export const DEFAULT_STATE: AppState = AppStateSchema.parse({
         font: "inter",
         density: "normal",
         skillLevels: false,
+        visibility: {
+          showLinks: true,
+          showSummary: true,
+          showSkills: true,
+          showAtsKeywords: true,
+          showProjects: true,
+          showEducation: true,
+          showLanguages: true,
+          showCertifications: true,
+        },
       },
     },
   ],
   updatedAt: Date.now(),
 });
-
 
 export async function loadState(): Promise<AppState> {
   const db = await getDb();
