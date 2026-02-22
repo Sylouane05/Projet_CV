@@ -51,11 +51,17 @@ export const ProjectSchema = z.object({
   tags: z.array(TagSchema).default([]),
 });
 
-/** ✅ NEW: Compétence “solide”, indépendante des technos utilisées */
+/** ✅ Compétence “solide”, indépendante des technos utilisées */
 export const SkillSchema = z.object({
   id: z.string(),
   name: z.string().min(1),
   domain: z.string().min(1).default("Général"),
+});
+
+/** ✅ NEW: Loisirs */
+export const HobbySchema = z.object({
+  id: z.string(),
+  name: z.string().min(1).default(""),
 });
 
 export const ProfileSchema = z.object({
@@ -74,6 +80,9 @@ export const ProfileSchema = z.object({
   certifications: z.array(CertificationItemSchema).default([]),
 
   photoAssetId: z.string().nullable().default(null),
+
+  // LinkedIn stocké ici dans ton projet (déjà utilisé dans la preview)
+  linkedinUsername: z.string().optional().default(""),
 });
 
 export const ResumeVariantSchema = z.object({
@@ -81,7 +90,6 @@ export const ResumeVariantSchema = z.object({
   name: z.string().min(1),
   selectedExperienceIds: z.array(z.string()).default([]),
   selectedProjectIds: z.array(z.string()).default([]),
-  /** ✅ NEW: sélection compétences par variant */
   selectedSkillIds: z.array(z.string()).default([]),
 
   atsKeywords: z.array(z.string().min(1)).default([]),
@@ -112,6 +120,9 @@ export const ResumeVariantSchema = z.object({
         showEducation: z.boolean().default(true),
         showLanguages: z.boolean().default(true),
         showCertifications: z.boolean().default(true),
+
+        /** ✅ NEW */
+        showHobbies: z.boolean().default(true),
       })
       .default({
         showLinks: true,
@@ -122,6 +133,7 @@ export const ResumeVariantSchema = z.object({
         showEducation: true,
         showLanguages: true,
         showCertifications: true,
+        showHobbies: true,
       }),
   }),
 });
@@ -131,8 +143,10 @@ export const AppStateSchema = z.object({
   profile: ProfileSchema,
   experiences: z.array(ExperienceSchema).default([]),
   projects: z.array(ProjectSchema).default([]),
-  /** ✅ NEW */
   skills: z.array(SkillSchema).default([]),
+
+  /** ✅ NEW */
+  hobbies: z.array(HobbySchema).default([]),
 
   resumeVariants: z.array(ResumeVariantSchema).default([]),
   updatedAt: z.number().default(() => Date.now()),
@@ -142,6 +156,7 @@ export type AppState = z.infer<typeof AppStateSchema>;
 export type Experience = z.infer<typeof ExperienceSchema>;
 export type Project = z.infer<typeof ProjectSchema>;
 export type Skill = z.infer<typeof SkillSchema>;
+export type Hobby = z.infer<typeof HobbySchema>;
 export type Profile = z.infer<typeof ProfileSchema>;
 export type ResumeVariant = z.infer<typeof ResumeVariantSchema>;
 

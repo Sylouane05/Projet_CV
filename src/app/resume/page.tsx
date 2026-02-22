@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAppStore } from "@/store/app-store";
+import ResumePreview from "@/components/ResumePreview";
 
 export default function ResumePage() {
   const {
@@ -36,7 +37,7 @@ export default function ResumePage() {
   const activeVariant = useMemo(() => {
     if (!state || !activeVariantId) return null;
     return state.resumeVariants.find((v) => v.id === activeVariantId) ?? null;
-  }, [state, activeVariantId]);
+  }, [state, activeVariantId, state]);
 
   if (loading || !state) return <div>Chargement…</div>;
   if (!activeVariant) return <div>Aucun variant actif.</div>;
@@ -50,6 +51,7 @@ export default function ResumePage() {
     showEducation: true,
     showLanguages: true,
     showCertifications: true,
+    showHobbies: true,
   };
 
   async function optimizeFromOffer() {
@@ -183,7 +185,6 @@ export default function ResumePage() {
             />
           </div>
 
-          {/* Accent color picker */}
           <div className="space-y-2">
             <div className="text-sm font-medium">Couleur accent</div>
             <div className="flex items-center gap-3">
@@ -198,181 +199,135 @@ export default function ResumePage() {
                 className="border rounded px-3 py-2 w-full"
                 value={activeVariant.settings?.accentColor ?? "#2563eb"}
                 onChange={(e) => setVariantAccentColor(activeVariant.id, e.target.value)}
-                placeholder="#2563eb"
               />
             </div>
           </div>
+        </div>
 
+        <div className="flex items-center justify-between">
           <div className="space-y-2">
             <div className="text-sm font-medium">Densité</div>
             <select
-              className="border rounded px-3 py-2 w-full bg-white"
+              className="border rounded px-3 py-2"
               value={activeVariant.settings?.density ?? "normal"}
-              onChange={(e) =>
-                setVariantDensity(activeVariant.id, e.target.value as "compact" | "normal" | "airy")
-              }
+              onChange={(e) => setVariantDensity(activeVariant.id, e.target.value as any)}
             >
-              <option value="compact">Compact (1 page)</option>
+              <option value="compact">Compact</option>
               <option value="normal">Normal</option>
               <option value="airy">Aéré</option>
             </select>
           </div>
-        </div>
 
-        {/* Visibilité */}
-        <div className="border rounded p-3 bg-white space-y-2">
-          <div className="text-sm font-medium">Visibilité (par variant)</div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            <Toggle
-              label="Afficher les liens (LinkedIn/GitHub)"
-              checked={!!vis.showLinks}
-              onChange={(v) => setVariantVisibility(activeVariant.id, { showLinks: v })}
-            />
-            <Toggle
-              label="Afficher le profil (résumé)"
-              checked={!!vis.showSummary}
-              onChange={(v) => setVariantVisibility(activeVariant.id, { showSummary: v })}
-            />
-            <Toggle
-              label="Afficher compétences"
-              checked={!!vis.showSkills}
-              onChange={(v) => setVariantVisibility(activeVariant.id, { showSkills: v })}
-            />
-            <Toggle
-              label="Afficher mots-clés ATS"
-              checked={!!vis.showAtsKeywords}
-              onChange={(v) => setVariantVisibility(activeVariant.id, { showAtsKeywords: v })}
-            />
-            <Toggle
-              label="Afficher projets"
-              checked={!!vis.showProjects}
-              onChange={(v) => setVariantVisibility(activeVariant.id, { showProjects: v })}
-            />
-            <Toggle
-              label="Afficher éducation"
-              checked={!!vis.showEducation}
-              onChange={(v) => setVariantVisibility(activeVariant.id, { showEducation: v })}
-            />
-            <Toggle
-              label="Afficher langues"
-              checked={!!vis.showLanguages}
-              onChange={(v) => setVariantVisibility(activeVariant.id, { showLanguages: v })}
-            />
-            <Toggle
-              label="Afficher certifications"
-              checked={!!vis.showCertifications}
-              onChange={(v) => setVariantVisibility(activeVariant.id, { showCertifications: v })}
-            />
-          </div>
-        </div>
-
-        <div className="flex items-end justify-end">
-          <button
-            className="text-red-600 text-sm"
-            onClick={() => deleteVariant(activeVariant.id)}
-            title="Supprime le variant (il doit en rester au moins un)"
-          >
-            Supprimer le variant
+          <button className="text-red-600 text-sm" onClick={() => deleteVariant(activeVariant.id)}>
+            Supprimer ce variant
           </button>
         </div>
       </div>
 
-      {/* Sélection compétences */}
+      {/* Visibilité */}
       <div className="border rounded bg-white p-4 space-y-3">
-        <div className="font-medium">Compétences incluses</div>
+        <div className="font-medium">Visibilité (par variant)</div>
 
-        {state.skills.length === 0 ? (
-          <div className="text-sm text-gray-600">
-            Aucune compétence. Ajoute-en dans “Bibliothèque → Compétences”.
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {state.skills.map((s) => {
-              const checked = (activeVariant.selectedSkillIds ?? []).includes(s.id);
-              return (
-                <label
-                  key={s.id}
-                  className="flex items-center gap-3 border rounded px-3 py-2 hover:bg-gray-50 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleSkillInVariant(activeVariant.id, s.id)}
-                  />
-                  <div className="flex-1">
-                    <div className="font-medium">{s.name}</div>
-                    <div className="text-sm text-gray-600">{s.domain}</div>
-                  </div>
-                </label>
-              );
-            })}
-          </div>
-        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <Toggle label="Liens" checked={vis.showLinks} onChange={(v) => setVariantVisibility(activeVariant.id, { showLinks: v })} />
+          <Toggle label="Profil" checked={vis.showSummary} onChange={(v) => setVariantVisibility(activeVariant.id, { showSummary: v })} />
+          <Toggle label="Compétences" checked={vis.showSkills} onChange={(v) => setVariantVisibility(activeVariant.id, { showSkills: v })} />
+          <Toggle label="Mots-clés ATS" checked={vis.showAtsKeywords} onChange={(v) => setVariantVisibility(activeVariant.id, { showAtsKeywords: v })} />
+          <Toggle label="Projets" checked={vis.showProjects} onChange={(v) => setVariantVisibility(activeVariant.id, { showProjects: v })} />
+          <Toggle label="Éducation" checked={vis.showEducation} onChange={(v) => setVariantVisibility(activeVariant.id, { showEducation: v })} />
+          <Toggle label="Langues" checked={vis.showLanguages} onChange={(v) => setVariantVisibility(activeVariant.id, { showLanguages: v })} />
+          <Toggle label="Certifications" checked={vis.showCertifications} onChange={(v) => setVariantVisibility(activeVariant.id, { showCertifications: v })} />
+
+          {/* ✅ NEW */}
+          <Toggle label="Loisirs" checked={vis.showHobbies} onChange={(v) => setVariantVisibility(activeVariant.id, { showHobbies: v })} />
+        </div>
       </div>
 
-      {/* Sélection expériences */}
-      <div className="border rounded bg-white p-4 space-y-3">
-        <div className="font-medium">Expériences incluses</div>
-
-        {state.experiences.length === 0 ? (
-          <div className="text-sm text-gray-600">Aucune expérience. Ajoute-en dans “Bibliothèque”.</div>
-        ) : (
-          <div className="space-y-2">
-            {state.experiences.map((exp) => {
-              const checked = activeVariant.selectedExperienceIds.includes(exp.id);
-              return (
-                <label
-                  key={exp.id}
-                  className="flex items-center gap-3 border rounded px-3 py-2 hover:bg-gray-50 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleExperienceInVariant(activeVariant.id, exp.id)}
-                  />
-                  <div className="flex-1">
-                    <div className="font-medium">{exp.title}</div>
-                    <div className="text-sm text-gray-600">{exp.company}</div>
-                  </div>
-                </label>
-              );
-            })}
+      {/* Sélections */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-6">
+          {/* Expériences */}
+          <div className="border rounded bg-white p-4 space-y-3">
+            <div className="font-medium">Sélection des expériences</div>
+            {state.experiences.length === 0 ? (
+              <div className="text-sm text-gray-600">Ajoute des expériences dans Bibliothèque.</div>
+            ) : (
+              <div className="space-y-2">
+                {state.experiences.map((e) => {
+                  const checked = activeVariant.selectedExperienceIds.includes(e.id);
+                  return (
+                    <label key={e.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleExperienceInVariant(activeVariant.id, e.id)}
+                      />
+                      <span>
+                        {e.title} — <span className="text-gray-600">{e.company}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Sélection projets */}
-      <div className="border rounded bg-white p-4 space-y-3">
-        <div className="font-medium">Projets inclus</div>
+          {/* Projets */}
+          <div className="border rounded bg-white p-4 space-y-3">
+            <div className="font-medium">Sélection des projets</div>
+            {state.projects.length === 0 ? (
+              <div className="text-sm text-gray-600">Ajoute des projets dans Bibliothèque.</div>
+            ) : (
+              <div className="space-y-2">
+                {state.projects.map((p) => {
+                  const checked = activeVariant.selectedProjectIds.includes(p.id);
+                  return (
+                    <label key={p.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleProjectInVariant(activeVariant.id, p.id)}
+                      />
+                      <span>{p.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
-        {state.projects.length === 0 ? (
-          <div className="text-sm text-gray-600">
-            Aucun projet. Ajoute-en dans “Bibliothèque → Projets”.
+          {/* Compétences */}
+          <div className="border rounded bg-white p-4 space-y-3">
+            <div className="font-medium">Sélection des compétences</div>
+            {(state.skills ?? []).length === 0 ? (
+              <div className="text-sm text-gray-600">Ajoute des compétences dans Bibliothèque.</div>
+            ) : (
+              <div className="space-y-2">
+                {(state.skills ?? []).map((s) => {
+                  const checked = (activeVariant.selectedSkillIds ?? []).includes(s.id);
+                  return (
+                    <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleSkillInVariant(activeVariant.id, s.id)}
+                      />
+                      <span>
+                        {s.name} <span className="text-gray-500">({s.domain})</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="space-y-2">
-            {state.projects.map((p) => {
-              const checked = activeVariant.selectedProjectIds.includes(p.id);
-              return (
-                <label
-                  key={p.id}
-                  className="flex items-center gap-3 border rounded px-3 py-2 hover:bg-gray-50 cursor-pointer"
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleProjectInVariant(activeVariant.id, p.id)}
-                  />
-                  <div className="flex-1">
-                    <div className="font-medium">{p.name}</div>
-                    <div className="text-sm text-gray-600">{p.role || "Projet"}</div>
-                  </div>
-                </label>
-              );
-            })}
-          </div>
-        )}
+        </div>
+
+        {/* Preview */}
+        <div className="space-y-3">
+          <div className="text-sm text-gray-600">Aperçu</div>
+          <ResumePreview state={state} variantId={activeVariant.id} />
+        </div>
       </div>
     </div>
   );

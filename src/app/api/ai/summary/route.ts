@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
-import { AiRewriteResponseSchema, type RewritePayload } from "@/lib/ai";
+import { AiSummaryResponseSchema, type SummaryPayload } from "@/lib/ai";
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -13,38 +13,37 @@ export async function POST(req: Request) {
       );
     }
 
-    const payload = (await req.json()) as RewritePayload;
+    const payload = (await req.json()) as SummaryPayload;
 
-    const bullets = (payload?.bullets ?? []).map((b) => String(b ?? "").trim()).filter(Boolean);
-    if (bullets.length === 0) {
-      return NextResponse.json({ error: "Aucun bullet fourni" }, { status: 400 });
+    const summary = String(payload?.summary ?? "").trim();
+    if (!summary) {
+      return NextResponse.json({ error: "Résumé vide" }, { status: 400 });
     }
+
+    const maxLines = Math.min(Math.max(payload?.maxLines ?? 4, 2), 6);
 
     const instruction = `
 Tu es un assistant de rédaction de CV.
-Objectif: réécrire UNIQUEMENT les bullets fournis, en FR, style concis ATS.
+Objectif: améliorer un résumé de profil en FR, style concis ATS, ${maxLines} lignes max.
 Règles strictes:
-- N'invente JAMAIS de chiffres, métriques, technos, outils, responsabilités.
-- Ne modifie PAS la tech stack (elle sert de contexte seulement).
+- N'invente JAMAIS d'expérience, diplôme, chiffres, techno, responsabilité.
 - Si une info manque, ajoute un placeholder clair: "[à préciser: ...]".
-- Conserve le sens et le niveau de vérité.
-- Sortie: bullets actionnables, verbe d'action, 1 idée par bullet, pas de blabla.
-
-Réponds en JSON strict avec ce schéma:
+- Phrase(s) courtes, orientées impact, pas de blabla.
+- Doit être crédible et cohérent avec le headline.
+Réponds en JSON strict:
 {
-  "bullets_rewritten": string[],
-  "bullets_short": string[] (optionnel, si mode=shorten_1page),
+  "summary_rewritten": string,
   "warnings": string[],
   "placeholders": string[]
 }
 `;
 
     const userContent = {
-      mode: payload.mode,
       style: payload.style,
       language: payload.language,
-      context: payload.context,
-      bullets,
+      profile: payload.profile ?? {},
+      summary,
+      maxLines,
     };
 
     const resp = await client.responses.create({
@@ -65,7 +64,7 @@ Réponds en JSON strict avec ce schéma:
       return NextResponse.json({ error: "Réponse IA non-JSON", raw: text }, { status: 502 });
     }
 
-    const parsed = AiRewriteResponseSchema.safeParse(json);
+    const parsed = AiSummaryResponseSchema.safeParse(json);
     if (!parsed.success) {
       return NextResponse.json(
         { error: "JSON IA invalide", issues: parsed.error.issues, raw: json },
@@ -75,7 +74,7 @@ Réponds en JSON strict avec ce schéma:
 
     return NextResponse.json(parsed.data);
   } catch (err: any) {
-    console.error("AI rewrite route error:", err);
+    console.error("AI summary route error:", err);
     return NextResponse.json({ error: err?.message ?? "Erreur serveur" }, { status: 500 });
   }
 }

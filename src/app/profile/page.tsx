@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAppStore } from "@/store/app-store";
 import type { CertificationItem, EducationItem, LanguageItem } from "@/lib/schema";
+import { savePhoto, loadPhoto, deleteAsset } from "@/lib/storage";
 
 function LinkChips({
   links,
@@ -13,10 +14,7 @@ function LinkChips({
 }) {
   const [draft, setDraft] = useState("");
 
-  const normalized = useMemo(
-    () => links.map((x) => x.trim()).filter(Boolean),
-    [links]
-  );
+  const normalized = useMemo(() => links.map((x) => x.trim()).filter(Boolean), [links]);
 
   function addFromDraft() {
     const raw = draft.trim();
@@ -44,7 +42,7 @@ function LinkChips({
 
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium">Liens (LinkedIn, GitHub, Portfolio)</label>
+      <label className="text-sm font-medium">Liens (GitHub, Portfolio, Site)</label>
 
       <div className="flex flex-wrap gap-2">
         {normalized.map((l, i) => (
@@ -64,7 +62,7 @@ function LinkChips({
         className="border rounded px-3 py-2 w-full"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        placeholder="Colle un lien puis Entrée (ex: https://linkedin.com/in/...)"
+        placeholder="Colle un lien puis Entrée (ex: https://github.com/..., https://ton-site.fr)"
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
@@ -82,12 +80,114 @@ function LinkChips({
 }
 
 export default function ProfilePage() {
+  // ✅ Hook store (toujours appelé)
   const { state, loading, updateProfile } = useAppStore();
-  if (loading || !state) return <div>Chargement…</div>;
 
-  const profile = state.profile;
+  // ✅ Hooks locaux (toujours appelés, même si loading)
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [summaryBusy, setSummaryBusy] = useState(false);
+  const [summaryMsg, setSummaryMsg] = useState<string | null>(null);
 
+  // profile peut être undefined au 1er render
+  const profile = state?.profile ?? null;
+
+  // ---------------------------
+  // PHOTO: preview
+  // ---------------------------
+  useEffect(() => {
+    let mounted = true;
+
+    async function run() {
+      if (!profile?.photoAssetId) {
+        if (mounted) setPhotoUrl(null);
+        return;
+      }
+
+      try {
+        const url = await loadPhoto(profile.photoAssetId);
+        if (mounted) setPhotoUrl(url);
+      } catch {
+        if (mounted) setPhotoUrl(null);
+      }
+    }
+
+    run();
+    return () => {
+      mounted = false;
+    };
+  }, [profile?.photoAssetId]);
+
+  async function onPickPhoto(file: File) {
+    if (!profile) return;
+
+    // supprime l'ancienne photo si elle existe
+    if (profile.photoAssetId) {
+      try {
+        await deleteAsset(profile.photoAssetId);
+      } catch {}
+    }
+
+    const assetId = await savePhoto(file);
+    updateProfile({ photoAssetId: assetId });
+  }
+
+  async function removePhoto() {
+    if (!profile?.photoAssetId) return;
+
+    try {
+      await deleteAsset(profile.photoAssetId);
+    } catch {}
+    updateProfile({ photoAssetId: undefined });
+  }
+
+  // ---------------------------
+  // IA résumé
+  // ---------------------------
+  async function improveSummary() {
+    if (!profile) return;
+    const txt = (profile.summary ?? "").trim();
+    if (!txt) return;
+
+    setSummaryBusy(true);
+    setSummaryMsg(null);
+
+    try {
+      const res = await fetch("/api/ai/summary", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          style: "concis_ats",
+          language: "fr",
+          profile: {
+            fullName: profile.fullName,
+            headline: profile.headline,
+          },
+          summary: txt,
+          maxLines: 4,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setSummaryMsg(data?.error ?? "Erreur IA");
+        return;
+      }
+
+      updateProfile({ summary: data.summary_rewritten });
+      setSummaryMsg("Résumé amélioré ✅");
+    } catch (e: any) {
+      setSummaryMsg(e?.message ?? "Erreur IA");
+    } finally {
+      setSummaryBusy(false);
+    }
+  }
+
+  // ---------------------------
+  // Helpers sections (utilisent profile => guards)
+  // ---------------------------
   function addEducation() {
+    if (!profile) return;
+
     const next: EducationItem[] = [
       ...(profile.education ?? []),
       {
@@ -104,16 +204,19 @@ export default function ProfilePage() {
   }
 
   function updateEducation(id: string, partial: Partial<EducationItem>) {
+    if (!profile) return;
     const next = (profile.education ?? []).map((e) => (e.id === id ? { ...e, ...partial } : e));
     updateProfile({ education: next });
   }
 
   function deleteEducation(id: string) {
+    if (!profile) return;
     const next = (profile.education ?? []).filter((e) => e.id !== id);
     updateProfile({ education: next });
   }
 
   function addLanguage() {
+    if (!profile) return;
     const next: LanguageItem[] = [
       ...(profile.languages ?? []),
       { id: crypto.randomUUID(), name: "Anglais", level: "B2" },
@@ -122,16 +225,19 @@ export default function ProfilePage() {
   }
 
   function updateLanguage(id: string, partial: Partial<LanguageItem>) {
+    if (!profile) return;
     const next = (profile.languages ?? []).map((l) => (l.id === id ? { ...l, ...partial } : l));
     updateProfile({ languages: next });
   }
 
   function deleteLanguage(id: string) {
+    if (!profile) return;
     const next = (profile.languages ?? []).filter((l) => l.id !== id);
     updateProfile({ languages: next });
   }
 
   function addCert() {
+    if (!profile) return;
     const next: CertificationItem[] = [
       ...(profile.certifications ?? []),
       { id: crypto.randomUUID(), name: "Certification", issuer: "", year: "" },
@@ -140,14 +246,19 @@ export default function ProfilePage() {
   }
 
   function updateCert(id: string, partial: Partial<CertificationItem>) {
+    if (!profile) return;
     const next = (profile.certifications ?? []).map((c) => (c.id === id ? { ...c, ...partial } : c));
     updateProfile({ certifications: next });
   }
 
   function deleteCert(id: string) {
+    if (!profile) return;
     const next = (profile.certifications ?? []).filter((c) => c.id !== id);
     updateProfile({ certifications: next });
   }
+
+  // ✅ Maintenant seulement on affiche l’état de chargement
+  if (loading || !profile) return <div>Chargement…</div>;
 
   return (
     <div className="space-y-6">
@@ -155,6 +266,48 @@ export default function ProfilePage() {
 
       {/* Infos de base */}
       <div className="border rounded bg-white p-4 space-y-4">
+        {/* PHOTO */}
+        <div className="flex items-center gap-4">
+          <div className="w-20 h-20 rounded-full overflow-hidden border bg-gray-50 flex items-center justify-center">
+            {photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photoUrl} alt="Photo" className="w-full h-full object-cover" />
+            ) : (
+              <div className="text-xs text-gray-500">Aucune photo</div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium block">Photo</label>
+            <div className="flex gap-2">
+              <label className="border rounded px-3 py-2 text-sm bg-white cursor-pointer">
+                Choisir…
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void onPickPhoto(f);
+                    e.currentTarget.value = "";
+                  }}
+                />
+              </label>
+
+              <button
+                type="button"
+                className="border rounded px-3 py-2 text-sm bg-white"
+                onClick={removePhoto}
+                disabled={!profile.photoAssetId}
+              >
+                Supprimer
+              </button>
+            </div>
+            <div className="text-xs text-gray-500">Format conseillé : carré, bonne lumière.</div>
+          </div>
+        </div>
+
+        {/* Champs base */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">Nom complet</label>
@@ -210,15 +363,41 @@ export default function ProfilePage() {
               placeholder="Ex: France, télétravail, PACA…"
             />
           </div>
+
+          {/* LinkedIn username */}
+          <div className="space-y-2 md:col-span-2">
+            <label className="text-sm font-medium">LinkedIn (username ou nom)</label>
+            <input
+              className="border rounded px-3 py-2 w-full"
+              value={(profile as any).linkedinUsername ?? ""}
+              onChange={(e) => updateProfile({ linkedinUsername: e.target.value })}
+              placeholder="Ex: sylouane-moussahmboumbe"
+            />
+            <div className="text-xs text-gray-500">
+              Mets uniquement la partie après <span className="font-medium">/in/</span> (sans https://). Le CV affichera
+              ce que tu saisis + un QR code.
+            </div>
+          </div>
         </div>
 
-        <LinkChips
-          links={profile.links ?? []}
-          onChange={(next) => updateProfile({ links: next })}
-        />
+        <LinkChips links={profile.links ?? []} onChange={(next) => updateProfile({ links: next })} />
 
+        {/* Résumé + IA */}
         <div className="space-y-2">
-          <label className="text-sm font-medium">Résumé (2–4 lignes)</label>
+          <div className="flex items-center justify-between gap-3">
+            <label className="text-sm font-medium">Résumé (2–4 lignes)</label>
+            <button
+              type="button"
+              className="border rounded px-3 py-1 text-sm bg-white"
+              disabled={summaryBusy || !(profile.summary ?? "").trim()}
+              onClick={improveSummary}
+            >
+              {summaryBusy ? "IA..." : "✨ Améliorer"}
+            </button>
+          </div>
+
+          {summaryMsg && <div className="text-xs text-gray-600">{summaryMsg}</div>}
+
           <textarea
             className="border rounded px-3 py-2 w-full min-h-[90px]"
             value={profile.summary ?? ""}
@@ -232,7 +411,7 @@ export default function ProfilePage() {
       <div className="border rounded bg-white p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="font-medium">Éducation</div>
-          <button className="border rounded px-3 py-2 text-sm bg-white" onClick={addEducation}>
+          <button type="button" className="border rounded px-3 py-2 text-sm bg-white" onClick={addEducation}>
             + Ajouter
           </button>
         </div>
@@ -286,7 +465,7 @@ export default function ProfilePage() {
                 />
 
                 <div className="flex justify-end">
-                  <button className="text-red-600 text-sm" onClick={() => deleteEducation(edu.id)}>
+                  <button className="text-red-600 text-sm" type="button" onClick={() => deleteEducation(edu.id)}>
                     Supprimer
                   </button>
                 </div>
@@ -300,7 +479,7 @@ export default function ProfilePage() {
       <div className="border rounded bg-white p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="font-medium">Langues</div>
-          <button className="border rounded px-3 py-2 text-sm bg-white" onClick={addLanguage}>
+          <button type="button" className="border rounded px-3 py-2 text-sm bg-white" onClick={addLanguage}>
             + Ajouter
           </button>
         </div>
@@ -325,7 +504,7 @@ export default function ProfilePage() {
                     placeholder="Niveau (ex: B2, C1, natif)"
                   />
                   <div className="flex justify-end">
-                    <button className="text-red-600 text-sm" onClick={() => deleteLanguage(lang.id)}>
+                    <button className="text-red-600 text-sm" type="button" onClick={() => deleteLanguage(lang.id)}>
                       Supprimer
                     </button>
                   </div>
@@ -340,7 +519,7 @@ export default function ProfilePage() {
       <div className="border rounded bg-white p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="font-medium">Certifications</div>
-          <button className="border rounded px-3 py-2 text-sm bg-white" onClick={addCert}>
+          <button type="button" className="border rounded px-3 py-2 text-sm bg-white" onClick={addCert}>
             + Ajouter
           </button>
         </div>
@@ -373,7 +552,7 @@ export default function ProfilePage() {
                 </div>
 
                 <div className="flex justify-end mt-2">
-                  <button className="text-red-600 text-sm" onClick={() => deleteCert(c.id)}>
+                  <button className="text-red-600 text-sm" type="button" onClick={() => deleteCert(c.id)}>
                     Supprimer
                   </button>
                 </div>

@@ -15,6 +15,7 @@ type VisibilityPatch = Partial<{
   showEducation: boolean;
   showLanguages: boolean;
   showCertifications: boolean;
+  showHobbies: boolean;
 }>;
 
 type AppStore = {
@@ -22,6 +23,9 @@ type AppStore = {
   loading: boolean;
 
   init: () => Promise<void>;
+
+  /** Remplacement complet du state (utile pour import JSON). */
+  replaceState: (next: AppState) => Promise<void>;
 
   updateProfile: (profile: Partial<Profile>) => void;
 
@@ -44,7 +48,7 @@ type AppStore = {
   updateProjectBullet: (id: string, index: number, value: string) => void;
   deleteProjectBullet: (id: string, index: number) => void;
 
-  // ✅ skills
+  // skills
   addSkill: () => void;
   updateSkill: (id: string, partial: Partial<Skill>) => void;
   deleteSkill: (id: string) => void;
@@ -83,6 +87,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
       loading: false,
       activeVariantId: data.resumeVariants?.[0]?.id ?? null,
     });
+  },
+
+  replaceState: async (next) => {
+    const activeVariantId = next.resumeVariants?.[0]?.id ?? null;
+    const updated: AppState = { ...next, updatedAt: Date.now() };
+    set({ state: updated, loading: false, activeVariantId });
+    await saveState(updated);
   },
 
   updateProfile: (partial) => {
@@ -343,7 +354,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     saveState(updated);
   },
 
-  // ---------------- ✅ SKILLS ----------------
+  // ---------------- SKILLS ----------------
   addSkill: () => {
     const current = get().state;
     if (!current) return;
@@ -434,6 +445,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
           showEducation: true,
           showLanguages: true,
           showCertifications: true,
+          showHobbies: true,
         },
       },
     };
@@ -666,6 +678,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
               showEducation: true,
               showLanguages: true,
               showCertifications: true,
+              showHobbies: true,
               ...prev,
               ...patch,
             },
