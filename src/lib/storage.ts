@@ -1,45 +1,6 @@
 import { getDb } from "./db";
 import { AppStateSchema, type AppState } from "./schema";
 
-// =========================
-// Backup / Restore bundle
-// =========================
-
-export type ExportBundleV1 = {
-  version: 1;
-  exportedAt: number;
-  state: AppState;
-  assets: Record<
-    string,
-    {
-      type: "photo";
-      mime: string;
-      createdAt: number;
-      dataUrl: string; // base64 data url
-    }
-  >;
-};
-
-async function blobToDataUrl(blob: Blob): Promise<string> {
-  return await new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Failed to read blob"));
-    reader.onload = () => resolve(String(reader.result));
-    reader.readAsDataURL(blob);
-  });
-}
-
-function dataUrlToBlob(dataUrl: string): { blob: Blob; mime: string } {
-  const m = /^data:([^;]+);base64,(.*)$/i.exec(dataUrl);
-  if (!m) throw new Error("Invalid dataUrl");
-  const mime = m[1];
-  const b64 = m[2];
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return { blob: new Blob([bytes], { type: mime }), mime };
-}
-
 export const DEFAULT_STATE: AppState = AppStateSchema.parse({
   profile: {
     fullName: "Ton Nom",
@@ -60,9 +21,7 @@ export const DEFAULT_STATE: AppState = AppStateSchema.parse({
   experiences: [],
   projects: [],
   skills: [],
-
   hobbies: [],
-
   resumeVariants: [
     {
       id: crypto.randomUUID(),
@@ -71,15 +30,7 @@ export const DEFAULT_STATE: AppState = AppStateSchema.parse({
       selectedProjectIds: [],
       selectedSkillIds: [],
       atsKeywords: [],
-      sectionOrder: [
-        "SUMMARY",
-        "SKILLS",
-        "EXPERIENCE",
-        "PROJECTS",
-        "EDUCATION",
-        "LANGUAGES",
-        "CERTS",
-      ],
+      sectionOrder: ["SUMMARY", "SKILLS", "EXPERIENCE", "PROJECTS", "EDUCATION", "LANGUAGES", "CERTS", "HOBBIES"],
       settings: {
         accentColor: "#2563eb",
         font: "inter",
@@ -116,6 +67,7 @@ export async function saveState(state: AppState): Promise<void> {
   await db.put("app_state", { json: state }, "main");
 }
 
+/** ---------------- ASSETS (photo) ---------------- */
 export async function savePhoto(file: File): Promise<string> {
   const db = await getDb();
   const id = crypto.randomUUID();
@@ -141,28 +93,63 @@ export async function deleteAsset(assetId: string): Promise<void> {
   await db.delete("assets", assetId);
 }
 
+/** ---------------- EXPORT / IMPORT JSON ---------------- */
+type ExportedAsset = {
+  id: string;
+  type: "photo" | string;
+  mime: string;
+  createdAt: number;
+  dataUrl: string; // base64
+};
+
+export type ExportBundle = {
+  version: number;
+  exportedAt: number;
+  state: AppState;
+  assets: ExportedAsset[];
+};
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = () => reject(new Error("read failed"));
+    r.onload = () => resolve(String(r.result));
+    r.readAsDataURL(blob);
+  });
+}
+
+function dataUrlToBlob(dataUrl: string): Blob {
+  const [meta, b64] = dataUrl.split(",", 2);
+  const mimeMatch = /data:([^;]+);base64/i.exec(meta);
+  const mime = mimeMatch?.[1] ?? "application/octet-stream";
+
+  const bin = atob(b64);
+  const len = bin.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
+}
+
 /**
- * Exporte un bundle JSON contenant:
- * - l'AppState
- * - les assets nécessaires (actuellement: photo)
+ * ✅ Export: état + assets nécessaires (photo si présente)
  */
-export async function exportBundle(): Promise<ExportBundleV1> {
-  const state = await loadState();
+export async function exportBundle(): Promise<ExportBundle> {
   const db = await getDb();
+  const state = await loadState();
 
-  const assets: ExportBundleV1["assets"] = {};
+  const assets: ExportedAsset[] = [];
 
-  // On exporte la photo si présente
   const photoId = state.profile.photoAssetId;
   if (photoId) {
     const asset = await db.get("assets", photoId);
-    if (asset) {
-      assets[photoId] = {
-        type: "photo",
-        mime: asset.mime,
-        createdAt: asset.createdAt,
+    if (asset?.blob) {
+      assets.push({
+        id: asset.id,
+        type: asset.type,
+        mime: asset.mime ?? "image/jpeg",
+        createdAt: asset.createdAt ?? Date.now(),
         dataUrl: await blobToDataUrl(asset.blob),
-      };
+      });
     }
   }
 
@@ -175,43 +162,40 @@ export async function exportBundle(): Promise<ExportBundleV1> {
 }
 
 /**
- * Importe un bundle JSON (remplacement complet).
- * - valide le state via AppStateSchema
- * - restaure les assets (photo)
- * - sauvegarde dans IndexedDB
+ * ✅ Import: réinjecte état + assets (photo)
+ * - réécrit app_state
+ * - restaure assets en conservant les mêmes ids
  */
 export async function importBundle(bundle: unknown): Promise<AppState> {
-  if (!bundle || typeof bundle !== "object") throw new Error("Bundle invalide");
+  // tolérant mais safe
+  const b = bundle as Partial<ExportBundle>;
+  const nextState = AppStateSchema.parse(b.state ?? DEFAULT_STATE);
 
-  const b = bundle as Partial<ExportBundleV1>;
-  if (b.version !== 1) throw new Error("Version de bundle non supportée");
-  if (!b.state) throw new Error("Bundle incomplet (state manquant)");
-
-  const parsed = AppStateSchema.safeParse(b.state);
-  if (!parsed.success) throw new Error("Données invalides (state)");
-
-  const nextState = parsed.data;
   const db = await getDb();
 
-  // Restaure les assets
-  const assets = (b.assets ?? {}) as ExportBundleV1["assets"];
-  for (const [id, meta] of Object.entries(assets)) {
-    if (!meta?.dataUrl) continue;
+  // Restore assets
+  const assets = Array.isArray(b.assets) ? b.assets : [];
+  for (const a of assets) {
+    if (!a?.id || !a?.dataUrl) continue;
     try {
-      const { blob, mime } = dataUrlToBlob(meta.dataUrl);
+      const blob = dataUrlToBlob(a.dataUrl);
       await db.put("assets", {
-        id,
-        type: "photo",
+        id: a.id,
+        type: a.type ?? "photo",
         blob,
-        mime: meta.mime || mime,
-        createdAt: meta.createdAt || Date.now(),
+        mime: a.mime ?? blob.type ?? "image/jpeg",
+        createdAt: a.createdAt ?? Date.now(),
       });
     } catch {
-      // on ignore si un asset échoue, le state s'importe quand même
+      // ignore asset failure, state still restored
     }
   }
 
-  const finalState = { ...nextState, updatedAt: Date.now() };
+  const finalState: AppState = {
+    ...nextState,
+    updatedAt: Date.now(),
+  };
+
   await saveState(finalState);
   return finalState;
 }

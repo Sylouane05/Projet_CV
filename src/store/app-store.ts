@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { loadState, saveState } from "@/lib/storage";
-import type { AppState, Profile, Project, Skill } from "@/lib/schema";
+import type { AppState, Profile, Project, Skill, Hobby } from "@/lib/schema";
 
 type Density = "compact" | "normal" | "airy";
 
@@ -23,9 +23,6 @@ type AppStore = {
   loading: boolean;
 
   init: () => Promise<void>;
-
-  /** Remplacement complet du state (utile pour import JSON). */
-  replaceState: (next: AppState) => Promise<void>;
 
   updateProfile: (profile: Partial<Profile>) => void;
 
@@ -52,6 +49,11 @@ type AppStore = {
   addSkill: () => void;
   updateSkill: (id: string, partial: Partial<Skill>) => void;
   deleteSkill: (id: string) => void;
+
+  // ✅ hobbies
+  addHobby: () => void;
+  updateHobby: (id: string, partial: Partial<Hobby>) => void;
+  deleteHobby: (id: string) => void;
 
   // variants
   activeVariantId: string | null;
@@ -89,13 +91,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
     });
   },
 
-  replaceState: async (next) => {
-    const activeVariantId = next.resumeVariants?.[0]?.id ?? null;
-    const updated: AppState = { ...next, updatedAt: Date.now() };
-    set({ state: updated, loading: false, activeVariantId });
-    await saveState(updated);
-  },
-
   updateProfile: (partial) => {
     const current = get().state;
     if (!current) return;
@@ -127,7 +122,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       tags: [],
     };
 
-    const updated = {
+    const updated: AppState = {
       ...current,
       experiences: [...current.experiences, newExp],
       updatedAt: Date.now(),
@@ -141,11 +136,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const updated = {
+    const updated: AppState = {
       ...current,
-      experiences: current.experiences.map((exp) =>
-        exp.id === id ? { ...exp, ...partial } : exp
-      ),
+      experiences: current.experiences.map((exp) => (exp.id === id ? { ...exp, ...partial } : exp)),
       updatedAt: Date.now(),
     };
 
@@ -157,7 +150,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const updated = {
+    const updated: AppState = {
       ...current,
       experiences: current.experiences.filter((e) => e.id !== id),
       resumeVariants: current.resumeVariants.map((v) => ({
@@ -175,10 +168,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const updated = {
+    const updated: AppState = {
       ...current,
       experiences: current.experiences.map((exp) =>
-        exp.id === id ? { ...exp, bullets: [...exp.bullets, ""] } : exp
+        exp.id === id ? { ...exp, bullets: [...(exp.bullets ?? []), ""] } : exp
       ),
       updatedAt: Date.now(),
     };
@@ -191,11 +184,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const updated = {
+    const updated: AppState = {
       ...current,
       experiences: current.experiences.map((exp) => {
         if (exp.id !== id) return exp;
-        const bullets = exp.bullets.slice();
+        const bullets = (exp.bullets ?? []).slice();
         bullets[index] = value;
         return { ...exp, bullets };
       }),
@@ -210,11 +203,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const updated = {
+    const updated: AppState = {
       ...current,
       experiences: current.experiences.map((exp) => {
         if (exp.id !== id) return exp;
-        const bullets = exp.bullets.filter((_, i) => i !== index);
+        const bullets = (exp.bullets ?? []).filter((_, i) => i !== index);
         return { ...exp, bullets };
       }),
       updatedAt: Date.now(),
@@ -228,13 +221,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const cleaned = bullets.map((b) => b.trim()).filter(Boolean);
-
-    const updated = {
+    const updated: AppState = {
       ...current,
-      experiences: current.experiences.map((exp) =>
-        exp.id === id ? { ...exp, bullets: cleaned } : exp
-      ),
+      experiences: current.experiences.map((exp) => (exp.id === id ? { ...exp, bullets } : exp)),
       updatedAt: Date.now(),
     };
 
@@ -247,21 +236,21 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const p: Project = {
+    const pr = {
       id: crypto.randomUUID(),
       name: "Nouveau projet",
       role: "",
       startDate: "",
       endDate: "",
+      link: "",
       bullets: [],
       tech: [],
-      link: "",
       tags: [],
     };
 
-    const updated = {
+    const updated: AppState = {
       ...current,
-      projects: [...current.projects, p],
+      projects: [...current.projects, pr],
       updatedAt: Date.now(),
     };
 
@@ -273,7 +262,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const updated = {
+    const updated: AppState = {
       ...current,
       projects: current.projects.map((p) => (p.id === id ? { ...p, ...partial } : p)),
       updatedAt: Date.now(),
@@ -287,7 +276,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const updated = {
+    const updated: AppState = {
       ...current,
       projects: current.projects.filter((p) => p.id !== id),
       resumeVariants: current.resumeVariants.map((v) => ({
@@ -305,11 +294,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const updated = {
+    const updated: AppState = {
       ...current,
-      projects: current.projects.map((p) =>
-        p.id === id ? { ...p, bullets: [...(p.bullets ?? []), ""] } : p
-      ),
+      projects: current.projects.map((p) => (p.id === id ? { ...p, bullets: [...(p.bullets ?? []), ""] } : p)),
       updatedAt: Date.now(),
     };
 
@@ -321,7 +308,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const updated = {
+    const updated: AppState = {
       ...current,
       projects: current.projects.map((p) => {
         if (p.id !== id) return p;
@@ -340,7 +327,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const updated = {
+    const updated: AppState = {
       ...current,
       projects: current.projects.map((p) => {
         if (p.id !== id) return p;
@@ -362,10 +349,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const s: Skill = {
       id: crypto.randomUUID(),
       name: "Nouvelle compétence",
-      domain: "Programmation",
+      domain: "Général",
+      level: "",
     };
 
-    const updated = {
+    const updated: AppState = {
       ...current,
       skills: [...(current.skills ?? []), s],
       updatedAt: Date.now(),
@@ -379,7 +367,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const updated = {
+    const updated: AppState = {
       ...current,
       skills: (current.skills ?? []).map((s) => (s.id === id ? { ...s, ...partial } : s)),
       updatedAt: Date.now(),
@@ -393,7 +381,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const updated = {
+    const updated: AppState = {
       ...current,
       skills: (current.skills ?? []).filter((s) => s.id !== id),
       resumeVariants: current.resumeVariants.map((v) => ({
@@ -407,30 +395,71 @@ export const useAppStore = create<AppStore>((set, get) => ({
     saveState(updated);
   },
 
+  // ---------------- HOBBIES ----------------
+  addHobby: () => {
+    const current = get().state;
+    if (!current) return;
+
+    const h: Hobby = {
+      id: crypto.randomUUID(),
+      name: "Nouveau loisir",
+    };
+
+    const updated: AppState = {
+      ...current,
+      hobbies: [...(current.hobbies ?? []), h],
+      updatedAt: Date.now(),
+    };
+
+    set({ state: updated });
+    saveState(updated);
+  },
+
+  updateHobby: (id, partial) => {
+    const current = get().state;
+    if (!current) return;
+
+    const updated: AppState = {
+      ...current,
+      hobbies: (current.hobbies ?? []).map((h) => (h.id === id ? { ...h, ...partial } : h)),
+      updatedAt: Date.now(),
+    };
+
+    set({ state: updated });
+    saveState(updated);
+  },
+
+  deleteHobby: (id) => {
+    const current = get().state;
+    if (!current) return;
+
+    const updated: AppState = {
+      ...current,
+      hobbies: (current.hobbies ?? []).filter((h) => h.id !== id),
+      updatedAt: Date.now(),
+    };
+
+    set({ state: updated });
+    saveState(updated);
+  },
+
   // ---------------- VARIANTS ----------------
   activeVariantId: null,
+
   setActiveVariant: (id) => set({ activeVariantId: id }),
 
   addVariant: () => {
     const current = get().state;
     if (!current) return;
 
-    const newVariant = {
+    const v = {
       id: crypto.randomUUID(),
       name: `CV ${current.resumeVariants.length + 1}`,
       selectedExperienceIds: [],
       selectedProjectIds: [],
       selectedSkillIds: [],
       atsKeywords: [],
-      sectionOrder: [
-        "SUMMARY",
-        "SKILLS",
-        "EXPERIENCE",
-        "PROJECTS",
-        "EDUCATION",
-        "LANGUAGES",
-        "CERTS",
-      ],
+      sectionOrder: ["SUMMARY", "SKILLS", "EXPERIENCE", "PROJECTS", "EDUCATION", "LANGUAGES", "CERTS", "HOBBIES"],
       settings: {
         accentColor: "#2563eb",
         font: "inter",
@@ -450,13 +479,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
       },
     };
 
-    const updated = {
+    const updated: AppState = {
       ...current,
-      resumeVariants: [...current.resumeVariants, newVariant],
+      resumeVariants: [...current.resumeVariants, v],
       updatedAt: Date.now(),
     };
 
-    set({ state: updated, activeVariantId: newVariant.id });
+    set({ state: updated, activeVariantId: v.id });
     saveState(updated);
   },
 
@@ -464,7 +493,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const updated = {
+    const updated: AppState = {
       ...current,
       resumeVariants: current.resumeVariants.map((v) => (v.id === id ? { ...v, name } : v)),
       updatedAt: Date.now(),
@@ -478,15 +507,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const nextVariants = current.resumeVariants.filter((v) => v.id !== id);
-    if (nextVariants.length === 0) return;
+    const next = current.resumeVariants.filter((v) => v.id !== id);
+    const updated: AppState = {
+      ...current,
+      resumeVariants: next.length ? next : current.resumeVariants,
+      updatedAt: Date.now(),
+    };
 
-    const updated = { ...current, resumeVariants: nextVariants, updatedAt: Date.now() };
-
-    const active = get().activeVariantId;
-    const nextActive = active === id ? nextVariants[0].id : active ?? nextVariants[0].id;
-
-    set({ state: updated, activeVariantId: nextActive });
+    set({
+      state: updated,
+      activeVariantId: updated.resumeVariants?.[0]?.id ?? null,
+    });
     saveState(updated);
   },
 
@@ -494,15 +525,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const updated = {
+    const updated: AppState = {
       ...current,
       resumeVariants: current.resumeVariants.map((v) => {
         if (v.id !== variantId) return v;
-        const exists = v.selectedExperienceIds.includes(expId);
-        const selectedExperienceIds = exists
-          ? v.selectedExperienceIds.filter((x) => x !== expId)
-          : [...v.selectedExperienceIds, expId];
-        return { ...v, selectedExperienceIds };
+        const setIds = new Set(v.selectedExperienceIds ?? []);
+        if (setIds.has(expId)) setIds.delete(expId);
+        else setIds.add(expId);
+        return { ...v, selectedExperienceIds: Array.from(setIds) };
       }),
       updatedAt: Date.now(),
     };
@@ -515,15 +545,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const updated = {
+    const updated: AppState = {
       ...current,
       resumeVariants: current.resumeVariants.map((v) => {
         if (v.id !== variantId) return v;
-        const exists = v.selectedProjectIds.includes(projectId);
-        const selectedProjectIds = exists
-          ? v.selectedProjectIds.filter((x) => x !== projectId)
-          : [...v.selectedProjectIds, projectId];
-        return { ...v, selectedProjectIds };
+        const setIds = new Set(v.selectedProjectIds ?? []);
+        if (setIds.has(projectId)) setIds.delete(projectId);
+        else setIds.add(projectId);
+        return { ...v, selectedProjectIds: Array.from(setIds) };
       }),
       updatedAt: Date.now(),
     };
@@ -536,14 +565,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const updated = {
+    const updated: AppState = {
       ...current,
       resumeVariants: current.resumeVariants.map((v) => {
         if (v.id !== variantId) return v;
-        const list = v.selectedSkillIds ?? [];
-        const exists = list.includes(skillId);
-        const selectedSkillIds = exists ? list.filter((x) => x !== skillId) : [...list, skillId];
-        return { ...v, selectedSkillIds };
+        const setIds = new Set(v.selectedSkillIds ?? []);
+        if (setIds.has(skillId)) setIds.delete(skillId);
+        else setIds.add(skillId);
+        return { ...v, selectedSkillIds: Array.from(setIds) };
       }),
       updatedAt: Date.now(),
     };
@@ -556,12 +585,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const unique = Array.from(new Set(ids));
-    const updated = {
+    const updated: AppState = {
       ...current,
-      resumeVariants: current.resumeVariants.map((v) =>
-        v.id === variantId ? { ...v, selectedExperienceIds: unique } : v
-      ),
+      resumeVariants: current.resumeVariants.map((v) => (v.id === variantId ? { ...v, selectedExperienceIds: ids } : v)),
       updatedAt: Date.now(),
     };
 
@@ -573,12 +599,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const unique = Array.from(new Set(ids));
-    const updated = {
+    const updated: AppState = {
       ...current,
-      resumeVariants: current.resumeVariants.map((v) =>
-        v.id === variantId ? { ...v, selectedProjectIds: unique } : v
-      ),
+      resumeVariants: current.resumeVariants.map((v) => (v.id === variantId ? { ...v, selectedProjectIds: ids } : v)),
       updatedAt: Date.now(),
     };
 
@@ -590,12 +613,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const unique = Array.from(new Set(ids));
-    const updated = {
+    const updated: AppState = {
       ...current,
-      resumeVariants: current.resumeVariants.map((v) =>
-        v.id === variantId ? { ...v, selectedSkillIds: unique } : v
-      ),
+      resumeVariants: current.resumeVariants.map((v) => (v.id === variantId ? { ...v, selectedSkillIds: ids } : v)),
       updatedAt: Date.now(),
     };
 
@@ -607,13 +627,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const cleaned = keywords.map((k) => k.trim()).filter(Boolean).slice(0, 20);
-
-    const updated = {
+    const updated: AppState = {
       ...current,
-      resumeVariants: current.resumeVariants.map((v) =>
-        v.id === variantId ? { ...v, atsKeywords: cleaned } : v
-      ),
+      resumeVariants: current.resumeVariants.map((v) => (v.id === variantId ? { ...v, atsKeywords: keywords } : v)),
       updatedAt: Date.now(),
     };
 
@@ -625,7 +641,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const updated = {
+    const updated: AppState = {
       ...current,
       resumeVariants: current.resumeVariants.map((v) =>
         v.id === variantId ? { ...v, settings: { ...v.settings, density } } : v
@@ -641,13 +657,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const safe = (color || "").trim();
-    if (!/^#([0-9a-fA-F]{6})$/.test(safe)) return;
-
-    const updated = {
+    const updated: AppState = {
       ...current,
       resumeVariants: current.resumeVariants.map((v) =>
-        v.id === variantId ? { ...v, settings: { ...v.settings, accentColor: safe } } : v
+        v.id === variantId ? { ...v, settings: { ...v.settings, accentColor: color } } : v
       ),
       updatedAt: Date.now(),
     };
@@ -660,7 +673,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const updated = {
+    const updated: AppState = {
       ...current,
       resumeVariants: current.resumeVariants.map((v) => {
         if (v.id !== variantId) return v;
@@ -669,19 +682,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
           ...v,
           settings: {
             ...v.settings,
-            visibility: {
-              showLinks: true,
-              showSummary: true,
-              showSkills: true,
-              showAtsKeywords: true,
-              showProjects: true,
-              showEducation: true,
-              showLanguages: true,
-              showCertifications: true,
-              showHobbies: true,
-              ...prev,
-              ...patch,
-            },
+            visibility: { ...prev, ...patch },
           },
         };
       }),
