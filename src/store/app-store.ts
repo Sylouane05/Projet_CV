@@ -1,8 +1,11 @@
 "use client";
 
 import { create } from "zustand";
-import { loadState, saveState } from "@/lib/storage";
-import type { AppState, Profile, Project, Skill, Hobby } from "@/lib/schema";
+import { getStorageScope } from "@/lib/db";
+import { saveState } from "@/lib/storage";
+import type { AppState, Profile, Project, Skill, Hobby, ResumeVariant } from "@/lib/schema";
+
+import type { Account, SyncPhase } from "@/lib/sync-engine";
 
 type Density = "compact" | "normal" | "airy";
 
@@ -21,6 +24,11 @@ type VisibilityPatch = Partial<{
 type AppStore = {
   state: AppState | null;
   loading: boolean;
+  saveError: string | null;
+  account: Account | null;
+  syncPhase: SyncPhase;
+  syncMessage: string | null;
+  replaceState: (state: AppState) => Promise<void>;
 
   init: () => Promise<void>;
 
@@ -81,14 +89,20 @@ type AppStore = {
 export const useAppStore = create<AppStore>((set, get) => ({
   state: null,
   loading: true,
+  saveError: null,
+  account: null,
+  syncPhase: "loading",
+  syncMessage: null,
+  replaceState: async (state) => {
+    const scope = getStorageScope();
+    await saveState(state);
+    if (scope !== getStorageScope()) return;
+    set({ state, saveError: null, activeVariantId: state.resumeVariants[0]?.id ?? null });
+  },
 
   init: async () => {
-    const data = await loadState();
-    set({
-      state: data,
-      loading: false,
-      activeVariantId: data.resumeVariants?.[0]?.id ?? null,
-    });
+    const { startCloudSync } = await import("@/lib/cloud-sync");
+    startCloudSync();
   },
 
   updateProfile: (partial) => {
@@ -102,7 +116,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   // ---------------- EXPERIENCES ----------------
@@ -129,7 +146,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   updateExperience: (id, partial) => {
@@ -143,7 +163,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   deleteExperience: (id) => {
@@ -161,7 +184,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   addExperienceBullet: (id) => {
@@ -177,7 +203,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   updateExperienceBullet: (id, index, value) => {
@@ -196,7 +225,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   deleteExperienceBullet: (id, index) => {
@@ -214,7 +246,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   applyExperienceBullets: (id, bullets) => {
@@ -228,7 +263,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   // ---------------- PROJECTS ----------------
@@ -255,7 +293,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   updateProject: (id, partial) => {
@@ -269,7 +310,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   deleteProject: (id) => {
@@ -287,7 +331,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   addProjectBullet: (id) => {
@@ -301,7 +348,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   updateProjectBullet: (id, index, value) => {
@@ -320,7 +370,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   deleteProjectBullet: (id, index) => {
@@ -338,7 +391,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   // ---------------- SKILLS ----------------
@@ -360,7 +416,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   updateSkill: (id, partial) => {
@@ -374,7 +433,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   deleteSkill: (id) => {
@@ -392,7 +454,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   // ---------------- HOBBIES ----------------
@@ -412,7 +477,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   updateHobby: (id, partial) => {
@@ -426,7 +494,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   deleteHobby: (id) => {
@@ -440,7 +511,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   // ---------------- VARIANTS ----------------
@@ -452,7 +526,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const current = get().state;
     if (!current) return;
 
-    const v = {
+    const v: ResumeVariant = {
       id: crypto.randomUUID(),
       name: `CV ${current.resumeVariants.length + 1}`,
       selectedExperienceIds: [],
@@ -486,7 +560,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated, activeVariantId: v.id });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   renameVariant: (id, name) => {
@@ -500,7 +577,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   deleteVariant: (id) => {
@@ -518,7 +598,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
       state: updated,
       activeVariantId: updated.resumeVariants?.[0]?.id ?? null,
     });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   toggleExperienceInVariant: (variantId, expId) => {
@@ -538,7 +621,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   toggleProjectInVariant: (variantId, projectId) => {
@@ -558,7 +644,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   toggleSkillInVariant: (variantId, skillId) => {
@@ -578,7 +667,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   setVariantSelectedExperienceIds: (variantId, ids) => {
@@ -592,7 +684,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   setVariantSelectedProjectIds: (variantId, ids) => {
@@ -606,7 +701,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   setVariantSelectedSkillIds: (variantId, ids) => {
@@ -620,7 +718,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   setVariantAtsKeywords: (variantId, keywords) => {
@@ -634,7 +735,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   setVariantDensity: (variantId, density) => {
@@ -650,7 +754,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   setVariantAccentColor: (variantId, color) => {
@@ -666,7 +773,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 
   setVariantVisibility: (variantId, patch) => {
@@ -690,6 +800,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     };
 
     set({ state: updated });
-    saveState(updated);
+    void saveState(updated).then(
+      () => { if (get().state === updated) set({ saveError: null }); },
+      () => { if (get().state === updated) set({ saveError: "Sauvegarde impossible. Exporte tes données avant de quitter cette page." }); }
+    );
   },
 }));

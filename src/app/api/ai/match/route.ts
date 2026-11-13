@@ -1,22 +1,9 @@
+import { readAiRequest, matchRequest } from "@/lib/ai-request";
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const ReqSchema = z.object({
-  jobOffer: z.string().min(20),
-  experiences: z.array(
-    z.object({
-      id: z.string(),
-      title: z.string(),
-      company: z.string(),
-      bullets: z.array(z.string()).default([]),
-      tech: z.array(z.string()).default([]),
-      tags: z.array(z.string()).default([]),
-    })
-  ),
-});
 
 const ResSchema = z.object({
   recommendedExperienceIds: z.array(z.string()).default([]),
@@ -33,16 +20,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = await req.json();
-    const parsedReq = ReqSchema.safeParse(body);
-    if (!parsedReq.success) {
-      return NextResponse.json(
-        { error: "Payload invalide", issues: parsedReq.error.issues },
-        { status: 400 }
-      );
-    }
-
-    const { jobOffer, experiences } = parsedReq.data;
+    const request = await readAiRequest(req, matchRequest);
+    if (request.response) return request.response;
+    const { jobOffer, experiences } = request.data;
 
     const instruction = `
 Tu es un assistant de sélection de contenu CV (ATS).
@@ -69,8 +49,10 @@ Réponds en JSON STRICT avec:
       rule: "Return only IDs that exist in experiences[].id",
     };
 
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 45000, maxRetries: 0 });
     const resp = await client.responses.create({
       model: "gpt-5-mini",
+      max_output_tokens: 4000,
       input: [
         { role: "system", content: instruction },
         { role: "user", content: JSON.stringify(userPayload) },

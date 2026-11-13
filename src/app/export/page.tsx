@@ -1,10 +1,9 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
 import { useAppStore } from "@/store/app-store";
-import ResumePreview from "@/components/ResumePreview";
+import ResponsiveResumePreview from "@/components/ResponsiveResumePreview";
+import { getStorageScope } from "@/lib/db";
 import { exportBundle, importBundle } from "@/lib/storage";
 
 function downloadJson(filename: string, data: unknown) {
@@ -46,61 +45,14 @@ export default function ExportPage() {
     setBusyPdf(true);
     try {
       const el = document.getElementById("resume-a4");
-      if (!el) return;
+      if (!el) throw new Error("L’aperçu du CV n’est pas encore disponible.");
 
-      const canvas = await html2canvas(el, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-        onclone: (doc) => {
-          // Force des couleurs simples pour éviter lab()/oklch()
-          const root = doc.getElementById("resume-a4");
-          if (!root) return;
+      await document.fonts.ready;
+      const images = Array.from(el.querySelectorAll("img"));
+      await Promise.all(images.map((img) => img.decode().catch(() => undefined)));
+      window.print();
 
-          (root as HTMLElement).style.backgroundColor = "#ffffff";
-          (root as HTMLElement).style.color = "#000000";
-
-          const all = root.querySelectorAll<HTMLElement>("*");
-          all.forEach((node) => {
-            const cs = doc.defaultView?.getComputedStyle(node);
-            if (!cs) return;
-
-            if (
-              cs.color &&
-              (cs.color.includes("lab(") || cs.color.includes("oklch(") || cs.color.includes("color("))
-            ) {
-              node.style.color = "#111111";
-            }
-            if (
-              cs.backgroundColor &&
-              (cs.backgroundColor.includes("lab(") ||
-                cs.backgroundColor.includes("oklch(") ||
-                cs.backgroundColor.includes("color("))
-            ) {
-              node.style.backgroundColor = "transparent";
-            }
-            if (
-              cs.borderColor &&
-              (cs.borderColor.includes("lab(") ||
-                cs.borderColor.includes("oklch(") ||
-                cs.borderColor.includes("color("))
-            ) {
-              node.style.borderColor = "#dddddd";
-            }
-          });
-        },
-      });
-
-      const imgData = canvas.toDataURL("image/png");
-
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-
-      pdf.addImage(imgData, "PNG", 0, 0, pageWidth, pageHeight);
-      pdf.save("cv.pdf");
-
-      setMsg({ type: "ok", text: "PDF généré ✅" });
+      setMsg({ type: "ok", text: "Dans la fenêtre d’impression, choisis « Enregistrer au format PDF »." });
     } catch (e: any) {
       setMsg({ type: "err", text: e?.message ? String(e.message) : "Erreur lors de la génération PDF" });
     } finally {
@@ -115,7 +67,7 @@ export default function ExportPage() {
     setMsg(null);
     setBusyData(true);
     try {
-      const bundle = await exportBundle();
+      const bundle = await exportBundle(state ?? undefined);
       const d = new Date(bundle.exportedAt);
       const yyyy = String(d.getFullYear());
       const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -138,14 +90,21 @@ export default function ExportPage() {
 
   async function onImportFile(file: File | null) {
     if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { setMsg({ type: "err", text: "Le fichier dépasse la limite de 10 Mo." }); return; }
+    if (!window.confirm("Remplacer toutes tes données par cette sauvegarde ? Pense à exporter tes données actuelles avant de continuer.")) {
+      if (fileRef.current) fileRef.current.value = "";
+      return;
+    }
     setMsg(null);
     setBusyData(true);
 
     try {
+      const scope = getStorageScope();
       const text = await file.text();
       const json = JSON.parse(text);
 
-      const nextState = await importBundle(json);
+      const nextState = await importBundle(json, scope);
+      if (scope !== getStorageScope()) throw new Error("Le compte a changé pendant l’import. Réessaie.");
       await replaceState(nextState);
 
       setMsg({ type: "ok", text: "Import JSON terminé ✅ (données restaurées)" });
@@ -158,12 +117,12 @@ export default function ExportPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div data-export-page className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">Export</h1>
 
         <button className="border rounded px-3 py-2 bg-white" onClick={downloadPdf} disabled={busyPdf}>
-          {busyPdf ? "Génération..." : "Télécharger PDF"}
+          {busyPdf ? "Génération..." : "Exporter en PDF"}
         </button>
       </div>
 
@@ -219,12 +178,12 @@ export default function ExportPage() {
       </div>
 
       {/* Preview */}
-      <div className="overflow-auto border rounded bg-gray-100 p-4">
-        <ResumePreview state={state} variantId={variantId} />
+      <div data-print-area className="min-w-0 border rounded bg-gray-100 p-2 sm:p-4">
+        <ResponsiveResumePreview state={state} variantId={variantId} />
       </div>
 
       <div className="text-sm text-gray-600">
-        Astuce : sélectionne tes expériences dans l’onglet “CV”, puis reviens ici.
+        Pour le PDF, choisis « Enregistrer au format PDF », le format A4 et désactive les en-têtes et pieds de page du navigateur.
       </div>
     </div>
   );

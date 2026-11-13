@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #171717;
 }
@@ -12,15 +13,67 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Keep native form controls readable with the application's light surfaces. */
+input, textarea, select {
+  color: #171717;
+  background-color: #ffffff;
+  border-color: #9ca3af;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #6b7280;
+  opacity: 1;
+}
+
+input:focus-visible, textarea:focus-visible, select:focus-visible,
+button:focus-visible, a:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+@media print {
+  @page { size: A4; margin: 10mm; }
+  html, body { background: white; color: black; }
+  /* Hide application chrome only; the CV has its own aside and main. */
+  nextjs-portal, [data-app-navigation], [data-app-content] > :not([data-export-page]),
+  [data-export-page] > :not([data-print-area]) { display: none !important; }
+  [data-app-shell], [data-app-layout], [data-app-content], [data-export-page],
+  [data-print-area], [data-resume-preview], [data-resume-viewport], [data-resume-scale] {
+    display: block !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    overflow: visible !important;
+    transform: none !important;
+    box-shadow: none !important;
+    background: white !important;
+  }
+  #resume-a4 {
+    width: 190mm !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: max(0mm, calc(var(--resume-padding) - 10mm)) !important;
+    box-shadow: none !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  #resume-a4 .resume-card {
+    break-inside: avoid;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+  #resume-a4 .resume-header, #resume-a4 .resume-entry, #resume-a4 li {
+    break-inside: avoid;
+  }
+  #resume-a4 .resume-section-heading { break-after: avoid; }
+  #resume-a4 p, #resume-a4 li { orphans: 2; widows: 2; }
 }

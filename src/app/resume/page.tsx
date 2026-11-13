@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAppStore } from "@/store/app-store";
-import ResumePreview from "@/components/ResumePreview";
+import ResponsiveResumePreview from "@/components/ResponsiveResumePreview";
 
 export default function ResumePage() {
   const {
@@ -37,7 +37,7 @@ export default function ResumePage() {
   const activeVariant = useMemo(() => {
     if (!state || !activeVariantId) return null;
     return state.resumeVariants.find((v) => v.id === activeVariantId) ?? null;
-  }, [state, activeVariantId, state]);
+  }, [state, activeVariantId]);
 
   if (loading || !state) return <div>Chargement…</div>;
   if (!activeVariant) return <div>Aucun variant actif.</div>;
@@ -55,7 +55,7 @@ export default function ResumePage() {
   };
 
   async function optimizeFromOffer() {
-    if (!jobOffer.trim()) return;
+    if (!jobOffer.trim() || !state || !activeVariant) return;
 
     setAiBusy(true);
     setAiMsg(null);
@@ -132,7 +132,7 @@ export default function ResumePage() {
           placeholder="Colle ici l’offre de stage (mission + stack + compétences recherchées)..."
         />
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             className="border rounded px-3 py-2 text-sm bg-white"
             disabled={aiBusy || !jobOffer.trim()}
@@ -151,7 +151,7 @@ export default function ResumePage() {
 
       {/* Variants */}
       <div className="border rounded bg-white p-4 space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="font-medium">Variants</div>
           <button className="border rounded px-3 py-2 text-sm" onClick={addVariant}>
             + Nouveau
@@ -187,7 +187,7 @@ export default function ResumePage() {
 
           <div className="space-y-2">
             <div className="text-sm font-medium">Couleur accent</div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <input
                 type="color"
                 value={activeVariant.settings?.accentColor ?? "#2563eb"}
@@ -204,7 +204,7 @@ export default function ResumePage() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-2">
             <div className="text-sm font-medium">Densité</div>
             <select
@@ -326,7 +326,7 @@ export default function ResumePage() {
         {/* Preview */}
         <div className="space-y-3">
           <div className="text-sm text-gray-600">Aperçu</div>
-          <ResumePreview state={state} variantId={activeVariant.id} />
+          <ResponsiveResumePreview state={state} variantId={activeVariant.id} />
         </div>
       </div>
     </div>

@@ -3,7 +3,7 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAppStore } from "@/store/app-store";
 import ChipsInput from "@/components/ChipsInput";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 
 function TabButton({
   active,
@@ -30,7 +30,7 @@ function TabButton({
 type AiKind = "experience" | "project";
 type AiMode = "rewrite" | "shorten_1page";
 
-export default function LibraryPage() {
+function LibraryContent() {
   const params = useSearchParams();
   const router = useRouter();
 
@@ -173,7 +173,7 @@ export default function LibraryPage() {
       {/* EXPÉRIENCES */}
       {tab === "experiences" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="font-medium">Expériences</div>
             <button className="border rounded px-3 py-2 text-sm" onClick={addExperience} type="button">
               + Ajouter une expérience
@@ -260,7 +260,7 @@ export default function LibraryPage() {
 
                   {/* Bullets + IA */}
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="text-sm font-medium">Missions (bullets)</div>
 
                       <div className="flex items-center gap-2 flex-wrap">
@@ -356,7 +356,7 @@ export default function LibraryPage() {
       {/* PROJETS */}
       {tab === "projects" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="font-medium">Projets</div>
             <button className="border rounded px-3 py-2 text-sm" onClick={addProject} type="button">
               + Ajouter un projet
@@ -440,7 +440,7 @@ export default function LibraryPage() {
 
                   {/* Bullets + IA */}
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="text-sm font-medium">Missions (bullets)</div>
 
                       <div className="flex items-center gap-2 flex-wrap">
@@ -536,7 +536,7 @@ export default function LibraryPage() {
       {/* COMPÉTENCES */}
       {tab === "skills" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="font-medium">Compétences</div>
             <button className="border rounded px-3 py-2 text-sm" onClick={addSkill} type="button">
               + Ajouter une compétence
@@ -588,7 +588,7 @@ export default function LibraryPage() {
       {/* ✅ LOISIRS (NOUVEAU) */}
       {tab === "hobbies" && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="font-medium">Loisirs</div>
             <button className="border rounded px-3 py-2 text-sm" onClick={addHobby} type="button">
               + Ajouter un loisir
@@ -631,4 +631,7 @@ export default function LibraryPage() {
       )}
     </div>
   );
+}
+export default function LibraryPage() {
+  return <Suspense fallback={<div>Chargement…</div>}><LibraryContent /></Suspense>;
 }

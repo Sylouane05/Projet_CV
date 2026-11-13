@@ -120,15 +120,12 @@ export default function ProfilePage() {
   async function onPickPhoto(file: File) {
     if (!profile) return;
 
-    // supprime l'ancienne photo si elle existe
-    if (profile.photoAssetId) {
-      try {
-        await deleteAsset(profile.photoAssetId);
-      } catch {}
+    try {
+      const assetId = await savePhoto(file);
+      updateProfile({ photoAssetId: assetId });
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Impossible d’enregistrer la photo.");
     }
-
-    const assetId = await savePhoto(file);
-    updateProfile({ photoAssetId: assetId });
   }
 
   async function removePhoto() {
@@ -137,7 +134,7 @@ export default function ProfilePage() {
     try {
       await deleteAsset(profile.photoAssetId);
     } catch {}
-    updateProfile({ photoAssetId: undefined });
+    updateProfile({ photoAssetId: null });
   }
 
   // ---------------------------
@@ -267,8 +264,8 @@ export default function ProfilePage() {
       {/* Infos de base */}
       <div className="border rounded bg-white p-4 space-y-4">
         {/* PHOTO */}
-        <div className="flex items-center gap-4">
-          <div className="w-20 h-20 rounded-full overflow-hidden border bg-gray-50 flex items-center justify-center">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="w-20 h-20 shrink-0 rounded-full overflow-hidden border bg-gray-50 flex items-center justify-center">
             {photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={photoUrl} alt="Photo" className="w-full h-full object-cover" />
@@ -384,7 +381,7 @@ export default function ProfilePage() {
 
         {/* Résumé + IA */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <label className="text-sm font-medium">Résumé (2–4 lignes)</label>
             <button
               type="button"
@@ -409,7 +406,7 @@ export default function ProfilePage() {
 
       {/* Éducation */}
       <div className="border rounded bg-white p-4 space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="font-medium">Éducation</div>
           <button type="button" className="border rounded px-3 py-2 text-sm bg-white" onClick={addEducation}>
             + Ajouter
@@ -477,7 +474,7 @@ export default function ProfilePage() {
 
       {/* Langues */}
       <div className="border rounded bg-white p-4 space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="font-medium">Langues</div>
           <button type="button" className="border rounded px-3 py-2 text-sm bg-white" onClick={addLanguage}>
             + Ajouter
@@ -517,7 +514,7 @@ export default function ProfilePage() {
 
       {/* Certifications */}
       <div className="border rounded bg-white p-4 space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="font-medium">Certifications</div>
           <button type="button" className="border rounded px-3 py-2 text-sm bg-white" onClick={addCert}>
             + Ajouter

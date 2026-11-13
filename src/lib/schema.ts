@@ -102,7 +102,7 @@ export const ResumeSettingsSchema = z.object({
   font: z.string().default("inter"),
   density: z.enum(["compact", "normal", "airy"]).default("normal"),
   skillLevels: z.boolean().default(false),
-  visibility: ResumeVisibilitySchema.default({}),
+  visibility: ResumeVisibilitySchema.prefault({}),
 });
 
 export const ResumeVariantSchema = z.object({
@@ -128,7 +128,7 @@ export const ResumeVariantSchema = z.object({
     )
     .default(["SUMMARY", "SKILLS", "EXPERIENCE", "PROJECTS", "EDUCATION", "LANGUAGES", "CERTS", "HOBBIES"]),
 
-  settings: ResumeSettingsSchema.default({}),
+  settings: ResumeSettingsSchema.prefault({}),
 });
 
 export const AppStateSchema = z.object({

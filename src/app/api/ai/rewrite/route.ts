@@ -1,8 +1,9 @@
+import { readAiRequest, rewriteRequest } from "@/lib/ai-request";
 import OpenAI from "openai";
 import { NextResponse } from "next/server";
-import { AiRewriteResponseSchema, type RewritePayload } from "@/lib/ai";
+import { AiRewriteResponseSchema } from "@/lib/ai";
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
 
 export async function POST(req: Request) {
   try {
@@ -13,7 +14,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const payload = (await req.json()) as RewritePayload;
+    const request = await readAiRequest(req, rewriteRequest);
+    if (request.response) return request.response;
+    const payload = request.data;
 
     const bullets = (payload?.bullets ?? []).map((b) => String(b ?? "").trim()).filter(Boolean);
     if (bullets.length === 0) {
@@ -47,8 +50,10 @@ Réponds en JSON strict avec ce schéma:
       bullets,
     };
 
+    const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY, timeout: 45000, maxRetries: 0 });
     const resp = await client.responses.create({
       model: "gpt-5-mini",
+      max_output_tokens: 4000,
       input: [
         { role: "system", content: instruction },
         { role: "user", content: JSON.stringify(userContent) },

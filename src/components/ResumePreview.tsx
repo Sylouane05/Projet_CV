@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { AppState } from "@/lib/schema";
 import QRCode from "qrcode";
 import { Mail, Phone, MapPin, Car, Linkedin } from "lucide-react";
@@ -63,7 +63,7 @@ function normalizeLinkedinUsername(input: string) {
 function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <div
-      className={`rounded ${className}`}
+      className={`resume-card rounded ${className}`}
       style={{
         border: "1px solid #111111",
         backgroundColor: "#ffffff",
@@ -78,11 +78,11 @@ function CardBody({ children }: { children: ReactNode }) {
 }
 function CardHeader({ title, accent }: { title: string; accent: string }) {
   return (
-    <div className="mb-2">
+    <div className="resume-section-heading mb-2">
       <div className="flex items-center justify-between">
-        <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "#111" }}>
+        <h2 className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "#111" }}>
           {title}
-        </div>
+        </h2>
         <div style={{ width: 26, height: 3, backgroundColor: accent }} />
       </div>
       <div style={{ height: 1, backgroundColor: "#111111", opacity: 0.12, marginTop: 6 }} />
@@ -94,10 +94,12 @@ function ContactRow({
   icon,
   value,
   right,
+  href,
 }: {
   icon: ReactNode;
   value: string;
   right?: ReactNode;
+  href?: string;
 }) {
   return (
     <div className="flex items-start justify-between gap-3">
@@ -107,7 +109,7 @@ function ContactRow({
           className="text-[11px] leading-snug min-w-0"
           style={{ color: "#111", wordBreak: "break-word", overflowWrap: "anywhere" }}
         >
-          {value}
+          {href ? <a href={href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{value}</a> : value}
         </div>
       </div>
       {right ? <div className="shrink-0">{right}</div> : null}
@@ -280,7 +282,7 @@ export default function ResumePreview({ state, variantId }: { state: AppState; v
     .filter((l) => !/linkedin\.com\/in\//i.test(l));
 
   /** Contact */
-  const contactItems: Array<{ key: string; icon: ReactNode; value: string; right?: ReactNode }> = [];
+  const contactItems: Array<{ key: string; icon: ReactNode; value: string; href?: string; right?: ReactNode }> = [];
   if (p.email?.trim()) contactItems.push({ key: "email", icon: <Mail size={14} />, value: p.email.trim() });
   if (p.phone?.trim())
     contactItems.push({ key: "phone", icon: <Phone size={14} />, value: normalizePhone(p.phone.trim()) });
@@ -291,7 +293,8 @@ export default function ResumePreview({ state, variantId }: { state: AppState; v
     contactItems.push({
       key: "linkedin",
       icon: <Linkedin size={14} />,
-      value: linkedinDisplay,
+      value: "Profil LinkedIn",
+      href: linkedinUrl,
       right: linkedinQr ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -317,15 +320,17 @@ export default function ResumePreview({ state, variantId }: { state: AppState; v
         width: "210mm",
         minHeight: "297mm",
         padding: `${paddingMm}mm`,
+        "--resume-padding": `${paddingMm}mm`,
         fontFamily:
           'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif',
-      }}
+      } as CSSProperties}
     >
       {/* HEADER */}
-      <div className="mb-4">
+      <div className="resume-header mb-4">
         <div className="grid grid-cols-12 items-start gap-6">
           <div className="col-span-8">
             <div className="flex items-start gap-4">
+              {photoUrl && (
               <div
                 className="shrink-0 overflow-hidden"
                 style={{
@@ -350,6 +355,7 @@ export default function ResumePreview({ state, variantId }: { state: AppState; v
                   />
                 ) : null}
               </div>
+              )}
 
               <div className="min-w-0">
                 <div className="text-[26px] font-semibold leading-[1.08]" style={{ color: "#111" }}>
@@ -391,7 +397,7 @@ export default function ResumePreview({ state, variantId }: { state: AppState; v
                   </div>
                   <div className="space-y-2">
                     {contactItems.map((r) => (
-                      <ContactRow key={r.key} icon={r.icon} value={r.value} right={r.right} />
+                      <ContactRow key={r.key} icon={r.icon} value={r.value} right={r.right} href={r.href} />
                     ))}
                   </div>
                 </CardBody>
@@ -547,7 +553,7 @@ export default function ResumePreview({ state, variantId }: { state: AppState; v
                       e.startDate || e.endDate ? `${e.startDate || "—"} → ${e.endDate || "Aujourd’hui"}` : "";
 
                     return (
-                      <div key={e.id}>
+                      <div key={e.id} className="resume-entry">
                         <div className="flex items-start justify-between gap-4">
                           <div className="min-w-0">
                             <div className="font-semibold" style={{ color: "#111" }}>
@@ -596,7 +602,7 @@ export default function ResumePreview({ state, variantId }: { state: AppState; v
                         pr.startDate || pr.endDate ? `${pr.startDate || "—"} → ${pr.endDate || "—"}` : "";
 
                       return (
-                        <div key={pr.id}>
+                        <div key={pr.id} className="resume-entry">
                           <div className="flex items-start justify-between gap-4">
                             <div className="min-w-0">
                               <div className="font-semibold" style={{ color: "#111" }}>

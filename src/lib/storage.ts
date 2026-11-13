@@ -1,4 +1,4 @@
-import { getDb } from "./db";
+import { getDb, getStorageScope } from "./db";
 import { AppStateSchema, type AppState } from "./schema";
 
 export const DEFAULT_STATE: AppState = AppStateSchema.parse({
@@ -53,22 +53,36 @@ export const DEFAULT_STATE: AppState = AppStateSchema.parse({
   updatedAt: Date.now(),
 });
 
-export async function loadState(): Promise<AppState> {
-  const db = await getDb();
+export async function loadLocalRecord(scope: string | null = getStorageScope()) {
+  const db = await getDb(scope);
   const row = await db.get("app_state", "main");
-  if (!row) return DEFAULT_STATE;
-
+  if (!row) return { state: structuredClone(DEFAULT_STATE), dirty: false, revision: null, exists: false };
   const parsed = AppStateSchema.safeParse(row.json);
-  return parsed.success ? parsed.data : DEFAULT_STATE;
+  if (!parsed.success) throw new Error("Les données sauvegardées sont invalides. Elles ont été conservées.");
+  return { state: parsed.data, dirty: row.dirty ?? true, revision: row.revision ?? null, exists: true };
 }
+export async function loadState(): Promise<AppState> { return (await loadLocalRecord()).state; }
 
 export async function saveState(state: AppState): Promise<void> {
   const db = await getDb();
-  await db.put("app_state", { json: state }, "main");
+  const tx = db.transaction("app_state", "readwrite");
+  const previous = await tx.store.get("main");
+  await tx.store.put({ json: state, dirty: true, revision: previous?.revision ?? null }, "main");
+  await tx.done;
+}
+export async function checkpointCloud(scope: string, revision: string, savedState: AppState) {
+  const db = await getDb(scope);
+  const tx = db.transaction("app_state", "readwrite");
+  const row = await tx.store.get("main");
+  if (row) await tx.store.put({ ...row, revision, dirty: JSON.stringify(row.json) !== JSON.stringify(savedState) }, "main");
+  await tx.done;
 }
 
 /** ---------------- ASSETS (photo) ---------------- */
 export async function savePhoto(file: File): Promise<string> {
+  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024) {
+    throw new Error("Choisis une image PNG, JPEG ou WebP de moins de 5 Mo.");
+  }
   const db = await getDb();
   const id = crypto.randomUUID();
   await db.put("assets", {
@@ -133,9 +147,9 @@ function dataUrlToBlob(dataUrl: string): Blob {
 /**
  * ✅ Export: état + assets nécessaires (photo si présente)
  */
-export async function exportBundle(): Promise<ExportBundle> {
-  const db = await getDb();
-  const state = await loadState();
+export async function exportBundle(currentState?: AppState, scope: string | null = getStorageScope()): Promise<ExportBundle> {
+  const db = await getDb(scope);
+  const state = currentState ?? (await loadLocalRecord(scope)).state;
 
   const assets: ExportedAsset[] = [];
 
@@ -166,36 +180,30 @@ export async function exportBundle(): Promise<ExportBundle> {
  * - réécrit app_state
  * - restaure assets en conservant les mêmes ids
  */
-export async function importBundle(bundle: unknown): Promise<AppState> {
+export async function importBundle(bundle: unknown, scope: string | null = getStorageScope(), cleanRevision?: string): Promise<AppState> {
   // tolérant mais safe
   const b = bundle as Partial<ExportBundle>;
-  const nextState = AppStateSchema.parse(b.state ?? DEFAULT_STATE);
-
-  const db = await getDb();
-
-  // Restore assets
-  const assets = Array.isArray(b.assets) ? b.assets : [];
-  for (const a of assets) {
-    if (!a?.id || !a?.dataUrl) continue;
-    try {
-      const blob = dataUrlToBlob(a.dataUrl);
-      await db.put("assets", {
-        id: a.id,
-        type: a.type ?? "photo",
-        blob,
-        mime: a.mime ?? blob.type ?? "image/jpeg",
-        createdAt: a.createdAt ?? Date.now(),
-      });
-    } catch {
-      // ignore asset failure, state still restored
-    }
+  if (!b || typeof b !== "object" || !b.state || b.version !== 1) {
+    throw new Error("Fichier de sauvegarde invalide ou version non prise en charge.");
   }
+  const nextState = AppStateSchema.parse(b.state);
 
-  const finalState: AppState = {
-    ...nextState,
-    updatedAt: Date.now(),
-  };
-
-  await saveState(finalState);
+  const photoId = nextState.profile.photoAssetId;
+  const assets = Array.isArray(b.assets) ? b.assets : [];
+  const photo = photoId ? assets.find((a) => a?.id === photoId) : null;
+  if (photoId && (!photo || typeof photo.dataUrl !== "string" || !/^data:image\/(png|jpeg|webp);base64,/i.test(photo.dataUrl))) {
+    throw new Error("La photo de cette sauvegarde est absente ou invalide.");
+  }
+  const blob = photo ? dataUrlToBlob(photo.dataUrl) : null;
+  if (blob && blob.size > 5 * 1024 * 1024) throw new Error("La photo dépasse la limite de 5 Mo.");
+  const finalState: AppState = { ...nextState, updatedAt: Date.now() };
+  const db = await getDb(scope);
+  const tx = db.transaction(["assets", "app_state"], "readwrite");
+  const previous = await tx.objectStore("app_state").get("main");
+  const writes: Promise<unknown>[] = [tx.objectStore("app_state").put({ json: finalState, revision: cleanRevision ?? previous?.revision ?? null, dirty: cleanRevision === undefined }, "main")];
+  if (photo && blob) writes.push(tx.objectStore("assets").put({
+    id: photo.id, type: "photo", blob, mime: blob.type, createdAt: Date.now(),
+  }));
+  await Promise.all([...writes, tx.done]);
   return finalState;
 }

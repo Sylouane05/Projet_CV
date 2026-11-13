@@ -1,0 +1,16 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid}/backups/main {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['version', 'state', 'photoPath', 'revision', 'savedAt'])
+        && request.resource.data.version == 1
+        && request.resource.data.state is map
+        && request.resource.data.revision is string
+        && request.resource.data.savedAt is number
+        && (request.resource.data.photoPath == null ||
+          request.resource.data.photoPath.matches('users/' + uid + '/photos/[^/]+'));
+    }
+  }
+}
