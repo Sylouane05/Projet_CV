@@ -4,13 +4,33 @@ service cloud.firestore {
     match /users/{uid}/backups/main {
       allow read, delete: if request.auth != null && request.auth.uid == uid;
       allow create, update: if request.auth != null && request.auth.uid == uid
-        && request.resource.data.keys().hasOnly(['version', 'state', 'photoPath', 'revision', 'savedAt'])
-        && request.resource.data.version == 1
         && request.resource.data.state is map
         && request.resource.data.revision is string
         && request.resource.data.savedAt is number
-        && (request.resource.data.photoPath == null ||
-          request.resource.data.photoPath.matches('users/' + uid + '/photos/[^/]+'));
+        && (
+          (request.resource.data.version == 1
+            && request.resource.data.keys().hasOnly(['version', 'state', 'photoPath', 'revision', 'savedAt'])
+            && (request.resource.data.photoPath == null ||
+              request.resource.data.photoPath.matches('users/' + uid + '/photos/[^/]+')))
+          ||
+          (request.resource.data.version == 2
+            && request.resource.data.keys().hasOnly(['version', 'state', 'photo', 'photoPath', 'revision', 'savedAt'])
+            && request.resource.data.photoPath == null
+            && (
+              (request.resource.data.state.profile.photoAssetId == null && request.resource.data.photo == null)
+              ||
+              (request.resource.data.photo is map
+                && request.resource.data.photo.keys().hasOnly(['id', 'type', 'mime', 'createdAt', 'dataUrl'])
+                && request.resource.data.photo.id is string
+                && request.resource.data.photo.id == request.resource.data.state.profile.photoAssetId
+                && request.resource.data.photo.type == 'photo'
+                && request.resource.data.photo.mime == 'image/jpeg'
+                && request.resource.data.photo.createdAt is number
+                && request.resource.data.photo.dataUrl is string
+                && request.resource.data.photo.dataUrl.size() <= 220000
+                && request.resource.data.photo.dataUrl.matches('data:image/jpeg;base64,[A-Za-z0-9+/]+={0,2}'))
+            ))
+        );
     }
   }
 }

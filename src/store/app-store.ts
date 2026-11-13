@@ -535,7 +535,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
       atsKeywords: [],
       sectionOrder: ["SUMMARY", "SKILLS", "EXPERIENCE", "PROJECTS", "EDUCATION", "LANGUAGES", "CERTS", "HOBBIES"],
       settings: {
-        accentColor: "#2563eb",
+        accentColor: "#183a3c",
         font: "inter",
         density: "normal" as Density,
         skillLevels: false,

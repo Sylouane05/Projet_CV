@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 
 export default function ChipsInput({
   label,
@@ -13,6 +13,7 @@ export default function ChipsInput({
   values: string[];
   onChange: (next: string[]) => void;
 }) {
+  const inputId = useId();
   const [draft, setDraft] = useState("");
 
   function addOne(raw: string) {
@@ -38,7 +39,7 @@ export default function ChipsInput({
 
   return (
     <div className="space-y-2">
-      <div className="text-sm font-medium">{label}</div>
+      <label htmlFor={inputId} className="text-sm font-medium">{label}</label>
 
       <div className="flex flex-wrap gap-2">
         {values.map((t, i) => (
@@ -55,6 +56,7 @@ export default function ChipsInput({
       </div>
 
       <input
+        id={inputId}
         className="border rounded px-3 py-2 w-full"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}

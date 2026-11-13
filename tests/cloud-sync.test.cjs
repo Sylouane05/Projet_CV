@@ -7,7 +7,7 @@ const output = ts.transpileModule(fs.readFileSync("src/lib/sync-engine.ts", "utf
 }).outputText;
 const engineModule = { exports: {} };
 new Function("require", "module", "exports", output)(require, engineModule, engineModule.exports);
-const { SyncEngine } = engineModule.exports;
+const { SyncEngine, syncErrorMessage } = engineModule.exports;
 const state = (name) => ({ profile: { fullName: name }, updatedAt: 1 });
 const local = (name, dirty = false, revision = null) => ({ state: state(name), dirty, revision });
 const remote = (name, revision = "r1") => ({ bundle: { state: state(name) }, revision, photo: { id: null, path: null } });
@@ -29,6 +29,29 @@ function setup(overrides = {}) {
   const engine = new SyncEngine(deps, 5);
   return { engine, calls, latest: () => calls.views.at(-1) };
 }
+
+test("photo transfer errors explain the failed sync without claiming a cloud save", async () => {
+  const error = Object.assign(new Error("Firebase Storage: Max retry time for operation exceeded"), { code: "storage/retry-limit-exceeded" });
+  const { engine, calls, latest } = setup({ save: async () => { throw error; } });
+  await engine.activate({ uid: "A", email: null });
+  const edited = state("pending photo");
+  engine.changed(edited);
+  await engine.saveNow();
+  assert.equal(latest().syncPhase, "error");
+  assert.equal(latest().state, edited);
+  assert.equal(calls.checkpoints.length, 0);
+  assert.match(latest().syncMessage, /photo/);
+  assert.match(latest().syncMessage, /n’a pas abouti/);
+  assert.doesNotMatch(latest().syncMessage, /Max retry time/);
+  engine.stop();
+});
+
+test("storage diagnostics distinguish setup, permission, quota and timeout", () => {
+  assert.match(syncErrorMessage({ code: "storage/bucket-not-found" }), /n’est pas configuré/);
+  assert.match(syncErrorMessage({ code: "storage/unauthorized" }), /règles d’accès de Firebase Storage/);
+  assert.match(syncErrorMessage({ code: "storage/quota-exceeded" }), /quota et le forfait/);
+  assert.match(syncErrorMessage({ code: "permission-denied" }), /Firestore/);
+});
 test("sign-in loads cloud data without saving defaults", async () => {
   const { engine, calls, latest } = setup();
   await engine.activate({ uid: "A", email: null });

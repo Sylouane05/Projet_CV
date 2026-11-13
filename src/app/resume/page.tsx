@@ -1,10 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useDialog } from "@/components/DialogProvider";
+import { getStorageScope } from "@/lib/db";
+import StudioPageHeader from "@/components/StudioPageHeader";
+import { AI_AVAILABLE } from "@/lib/features";
+import { ChevronDown, Sparkles } from "lucide-react";
 import { useAppStore } from "@/store/app-store";
 import ResponsiveResumePreview from "@/components/ResponsiveResumePreview";
 
 export default function ResumePage() {
+  const { confirm } = useDialog();
   const {
     state,
     loading,
@@ -118,12 +124,13 @@ export default function ResumePage() {
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">CV</h1>
+    <div className="studio-page composer-page">
+      <StudioPageHeader eyebrow="03 / VOTRE COMPOSITION" title="Votre parcours. Votre signature." description="Choisissez l’essentiel, ajustez les détails et regardez votre CV prendre forme." action={{label:"Exporter mon CV",href:"/export"}} />
 
+      <div className="composer-layout"><div className="composer-controls space-y-5">
       {/* Adapter à une offre */}
-      <div className="border rounded bg-white p-4 space-y-3">
-        <div className="font-medium">Adapter à une offre</div>
+      {AI_AVAILABLE && <details className="studio-disclosure studio-card border rounded bg-white p-4 space-y-3">
+        <summary><Sparkles size={16} aria-hidden="true" /><span>Adapter à une offre<small>Un coup de pouce, si vous en avez besoin.</small></span><ChevronDown size={16} aria-hidden="true" /></summary>
 
         <textarea
           className="border rounded px-3 py-2 w-full min-h-[140px]"
@@ -138,7 +145,7 @@ export default function ResumePage() {
             disabled={aiBusy || !jobOffer.trim()}
             onClick={optimizeFromOffer}
           >
-            {aiBusy ? "Analyse..." : "Analyser et optimiser ce variant"}
+            {aiBusy ? "Analyse..." : "Adapter cette version"}
           </button>
 
           {aiMsg && <div className="text-sm text-gray-700">{aiMsg}</div>}
@@ -147,12 +154,12 @@ export default function ResumePage() {
         <div className="text-xs text-gray-500">
           L’IA ne coche que des expériences existantes et propose des mots-clés ATS (sans inventer de faits).
         </div>
-      </div>
+      </details>}
 
       {/* Variants */}
-      <div className="border rounded bg-white p-4 space-y-4">
+      <div className="studio-card border rounded bg-white p-4 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="font-medium">Variants</div>
+          <div className="font-medium">Vos versions</div>
           <button className="border rounded px-3 py-2 text-sm" onClick={addVariant}>
             + Nouveau
           </button>
@@ -164,6 +171,7 @@ export default function ResumePage() {
             return (
               <button
                 key={v.id}
+                aria-pressed={active}
                 className={`border rounded px-3 py-2 text-sm ${
                   active ? "bg-gray-100 font-medium" : "bg-white hover:bg-gray-50"
                 }`}
@@ -177,18 +185,20 @@ export default function ResumePage() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="space-y-2 md:col-span-2">
-            <div className="text-sm font-medium">Nom du variant</div>
+            <label htmlFor="variant-name" className="text-sm font-medium">Nom de cette version</label>
             <input
               className="border rounded px-3 py-2 w-full"
+              id="variant-name"
               value={activeVariant.name}
               onChange={(e) => renameVariant(activeVariant.id, e.target.value)}
             />
           </div>
 
           <div className="space-y-2">
-            <div className="text-sm font-medium">Couleur accent</div>
+            <div className="text-sm font-medium">Couleur de signature</div>
             <div className="flex flex-wrap items-center gap-3">
               <input
+                aria-label="Couleur de signature"
                 type="color"
                 value={activeVariant.settings?.accentColor ?? "#2563eb"}
                 onChange={(e) => setVariantAccentColor(activeVariant.id, e.target.value)}
@@ -196,6 +206,7 @@ export default function ResumePage() {
                 title="Choisir la couleur"
               />
               <input
+                aria-label="Valeur de la couleur de signature"
                 className="border rounded px-3 py-2 w-full"
                 value={activeVariant.settings?.accentColor ?? "#2563eb"}
                 onChange={(e) => setVariantAccentColor(activeVariant.id, e.target.value)}
@@ -206,11 +217,12 @@ export default function ResumePage() {
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-2">
-            <div className="text-sm font-medium">Densité</div>
+            <label htmlFor="variant-density" className="text-sm font-medium">Densité</label>
             <select
               className="border rounded px-3 py-2"
+              id="variant-density"
               value={activeVariant.settings?.density ?? "normal"}
-              onChange={(e) => setVariantDensity(activeVariant.id, e.target.value as any)}
+              onChange={(e) => setVariantDensity(activeVariant.id, e.target.value as "compact" | "normal" | "airy")}
             >
               <option value="compact">Compact</option>
               <option value="normal">Normal</option>
@@ -218,15 +230,18 @@ export default function ResumePage() {
             </select>
           </div>
 
-          <button className="text-red-600 text-sm" onClick={() => deleteVariant(activeVariant.id)}>
-            Supprimer ce variant
+          <button className="text-red-600 text-sm" disabled={state.resumeVariants.length < 2} title={state.resumeVariants.length < 2 ? "Conservez au moins une version de CV" : undefined} onClick={async () => {
+            const scope = getStorageScope();
+            if (await confirm({ title: "Supprimer cette version ?", description: `La version « ${activeVariant.name} » sera supprimée. Exportez vos données si vous souhaitez en conserver une copie.`, confirmLabel: "Supprimer cette version", destructive: true }) && scope === getStorageScope()) deleteVariant(activeVariant.id);
+          }}>
+            Supprimer cette version
           </button>
         </div>
       </div>
 
       {/* Visibilité */}
-      <div className="border rounded bg-white p-4 space-y-3">
-        <div className="font-medium">Visibilité (par variant)</div>
+      <div className="studio-card border rounded bg-white p-4 space-y-3">
+        <div className="font-medium">Rubriques affichées</div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           <Toggle label="Liens" checked={vis.showLinks} onChange={(v) => setVariantVisibility(activeVariant.id, { showLinks: v })} />
@@ -244,10 +259,10 @@ export default function ResumePage() {
       </div>
 
       {/* Sélections */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
         <div className="space-y-6">
           {/* Expériences */}
-          <div className="border rounded bg-white p-4 space-y-3">
+          <div className="studio-card border rounded bg-white p-4 space-y-3">
             <div className="font-medium">Sélection des expériences</div>
             {state.experiences.length === 0 ? (
               <div className="text-sm text-gray-600">Ajoute des expériences dans Bibliothèque.</div>
@@ -273,7 +288,7 @@ export default function ResumePage() {
           </div>
 
           {/* Projets */}
-          <div className="border rounded bg-white p-4 space-y-3">
+          <div className="studio-card border rounded bg-white p-4 space-y-3">
             <div className="font-medium">Sélection des projets</div>
             {state.projects.length === 0 ? (
               <div className="text-sm text-gray-600">Ajoute des projets dans Bibliothèque.</div>
@@ -297,7 +312,7 @@ export default function ResumePage() {
           </div>
 
           {/* Compétences */}
-          <div className="border rounded bg-white p-4 space-y-3">
+          <div className="studio-card border rounded bg-white p-4 space-y-3">
             <div className="font-medium">Sélection des compétences</div>
             {(state.skills ?? []).length === 0 ? (
               <div className="text-sm text-gray-600">Ajoute des compétences dans Bibliothèque.</div>
@@ -323,9 +338,10 @@ export default function ResumePage() {
           </div>
         </div>
 
+      </div>
         {/* Preview */}
-        <div className="space-y-3">
-          <div className="text-sm text-gray-600">Aperçu</div>
+        <div className="composer-preview">
+          <div className="studio-preview-heading"><span><i /> VOTRE CV, EN DIRECT</span><span>A4</span></div>
           <ResponsiveResumePreview state={state} variantId={activeVariant.id} />
         </div>
       </div>

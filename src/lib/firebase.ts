@@ -1,17 +1,19 @@
 import { getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
 
-// Public web configuration. Access is controlled by Firebase Security Rules.
+// Next.js embeds NEXT_PUBLIC values in the web bundle. Firebase rules enforce access.
 export function firebaseServices() {
-  const app = getApps()[0] ?? initializeApp({
-    apiKey: "AIzaSyD7goCHGnKzgmD_XIxhP-byDgezG95TCvk",
-    authDomain: "cv-builder-214cb.firebaseapp.com",
-    projectId: "cv-builder-214cb",
-    storageBucket: "cv-builder-214cb.firebasestorage.app",
-    messagingSenderId: "323302246391",
-    appId: "1:323302246391:web:790fd5b698630dc85e90f2",
-  });
-  return { auth: getAuth(app), db: getFirestore(app), storage: getStorage(app) };
+  const config = {
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  };
+  if (Object.values(config).some((value) => !value?.trim())) {
+    throw new Error("Configuration Firebase manquante. Renseigne les variables de .env.example dans .env.local puis redémarre le site.");
+  }
+  const app = getApps()[0] ?? initializeApp({ ...config, storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET });
+  return { auth: getAuth(app), db: getFirestore(app) };
 }

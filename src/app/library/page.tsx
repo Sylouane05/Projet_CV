@@ -2,8 +2,12 @@
 
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAppStore } from "@/store/app-store";
+import StudioPageHeader from "@/components/StudioPageHeader";
+import { AI_AVAILABLE } from "@/lib/features";
 import ChipsInput from "@/components/ChipsInput";
-import { Suspense, useState } from "react";
+import { Suspense, useRef, useState } from "react";
+import { Search, X } from "lucide-react";
+import { libraryTab, searchLibrary, type LibraryTab } from "@/lib/library-search";
 
 function TabButton({
   active,
@@ -16,6 +20,7 @@ function TabButton({
 }) {
   return (
     <button
+      aria-pressed={active}
       className={`border rounded px-3 py-2 text-sm ${
         active ? "bg-gray-100 font-medium" : "bg-white hover:bg-gray-50"
       }`}
@@ -34,11 +39,9 @@ function LibraryContent() {
   const params = useSearchParams();
   const router = useRouter();
 
-  const tab = (params.get("tab") ?? "experiences") as
-    | "experiences"
-    | "projects"
-    | "skills"
-    | "hobbies";
+  const tab = libraryTab(params.get("tab"));
+  const [queries, setQueries] = useState<Record<LibraryTab, string>>({ experiences: "", projects: "", skills: "", hobbies: "" });
+  const searchInput = useRef<HTMLInputElement>(null);
 
   const {
     state,
@@ -71,9 +74,11 @@ function LibraryContent() {
     deleteHobby,
   } = useAppStore();
 
-  const setTab = (next: "experiences" | "projects" | "skills" | "hobbies") => {
-    router.replace(`/library?tab=${next}`);
+  const setTab = (next: LibraryTab) => {
+    router.replace(`/library?tab=${next}`, { scroll: false });
   };
+  const clearSearch = () => setQueries((current) => ({ ...current, [tab]: "" }));
+  function addEntry(add: () => void) { clearSearch(); add(); }
 
   const [aiBusyById, setAiBusyById] = useState<Record<string, boolean>>({});
   const [aiMsgById, setAiMsgById] = useState<Record<string, string | null>>({});
@@ -143,18 +148,20 @@ function LibraryContent() {
   }
 
   if (loading || !state) return <div>Chargement…</div>;
+  const results = searchLibrary(state, queries);
+  const searchLabels = {
+    experiences: { label: "Rechercher dans les expériences", placeholder: "Poste, entreprise, ville, technologie…" },
+    projects: { label: "Rechercher dans les projets", placeholder: "Nom, rôle, mission, technologie…" },
+    skills: { label: "Rechercher dans les compétences", placeholder: "Compétence, domaine ou niveau…" },
+    hobbies: { label: "Rechercher dans les loisirs", placeholder: "Nom d’un loisir…" },
+  };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Bibliothèque</h1>
-        <div className="text-gray-600 mt-1">
-          Ajoute tes contenus ici, puis sélectionne-les par variant dans l’onglet CV.
-        </div>
-      </div>
+    <div className="studio-page library-page">
+      <StudioPageHeader eyebrow="02 / VOTRE BIBLIOTHÈQUE" title="Chaque expérience compte." description="Rassemblez vos expériences, vos projets et vos savoir-faire." action={{label:"Composer mon CV",href:"/resume"}} />
 
       {/* Onglets */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="studio-tabs flex gap-2 flex-wrap">
         <TabButton active={tab === "experiences"} onClick={() => setTab("experiences")}>
           Expériences
         </TabButton>
@@ -170,24 +177,34 @@ function LibraryContent() {
         </TabButton>
       </div>
 
+      <div className="library-search-panel">
+        <label htmlFor="library-search">{searchLabels[tab].label}</label>
+        <div className="library-search-field">
+          <Search size={18} aria-hidden="true" />
+          <input ref={searchInput} id="library-search" type="search" value={queries[tab]} onChange={(event) => setQueries((current) => ({ ...current, [tab]: event.target.value }))} placeholder={searchLabels[tab].placeholder} aria-describedby="library-result-count" />
+          {queries[tab] && <button type="button" aria-label="Effacer la recherche" onClick={() => { clearSearch(); searchInput.current?.focus(); }}><X size={17} aria-hidden="true" /></button>}
+        </div>
+        <p id="library-result-count" role="status" aria-live="polite">{results[tab].length} {results[tab].length === 1 ? "élément affiché" : "éléments affichés"} sur {state[tab].length}</p>
+      </div>
+      {queries[tab].trim() && state[tab].length > 0 && results[tab].length === 0 && <div className="library-search-empty"><Search size={24} aria-hidden="true" /><h2>Aucun résultat pour cette recherche</h2><p>Essayez un autre mot-clé ou effacez la recherche pour retrouver tous vos éléments.</p><button type="button" onClick={() => { clearSearch(); searchInput.current?.focus(); }}>Effacer la recherche</button></div>}
       {/* EXPÉRIENCES */}
       {tab === "experiences" && (
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="font-medium">Expériences</div>
-            <button className="border rounded px-3 py-2 text-sm" onClick={addExperience} type="button">
+            <button className="border rounded px-3 py-2 text-sm" onClick={() => addEntry(addExperience)} type="button">
               + Ajouter une expérience
             </button>
           </div>
 
           {state.experiences.length === 0 ? (
-            <div className="border rounded bg-white p-4 text-gray-600">
+            <div className="studio-card border rounded bg-white p-4 text-gray-600">
               Aucune expérience. Clique sur “Ajouter une expérience”.
             </div>
           ) : (
             <div className="space-y-4">
-              {state.experiences.map((exp) => (
-                <div key={exp.id} className="border rounded bg-white p-4 space-y-4">
+              {results.experiences.map((exp) => (
+                <div key={exp.id} className="studio-card border rounded bg-white p-4 space-y-4">
                   {/* Titre / Entreprise */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-2">
@@ -264,7 +281,7 @@ function LibraryContent() {
                       <div className="text-sm font-medium">Missions (bullets)</div>
 
                       <div className="flex items-center gap-2 flex-wrap">
-                        <button
+                        {AI_AVAILABLE && <button
                           className="border rounded px-3 py-1 text-sm"
                           type="button"
                           disabled={!!aiBusyById[exp.id] || (exp.bullets ?? []).every((b) => !b.trim())}
@@ -282,9 +299,9 @@ function LibraryContent() {
                           }
                         >
                           {aiBusyById[exp.id] ? "IA..." : "✨ Améliorer"}
-                        </button>
+                        </button>}
 
-                        <button
+                        {AI_AVAILABLE && <button
                           className="border rounded px-3 py-1 text-sm"
                           type="button"
                           disabled={!!aiBusyById[exp.id] || (exp.bullets ?? []).every((b) => !b.trim())}
@@ -302,7 +319,7 @@ function LibraryContent() {
                           }
                         >
                           ✨ 1 page
-                        </button>
+                        </button>}
 
                         <button
                           className="border rounded px-3 py-1 text-sm"
@@ -358,17 +375,17 @@ function LibraryContent() {
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="font-medium">Projets</div>
-            <button className="border rounded px-3 py-2 text-sm" onClick={addProject} type="button">
+            <button className="border rounded px-3 py-2 text-sm" onClick={() => addEntry(addProject)} type="button">
               + Ajouter un projet
             </button>
           </div>
 
           {state.projects.length === 0 ? (
-            <div className="border rounded bg-white p-4 text-gray-600">Aucun projet. Clique sur “Ajouter un projet”.</div>
+            <div className="studio-card border rounded bg-white p-4 text-gray-600">Aucun projet. Clique sur “Ajouter un projet”.</div>
           ) : (
             <div className="space-y-4">
-              {state.projects.map((p) => (
-                <div key={p.id} className="border rounded bg-white p-4 space-y-4">
+              {results.projects.map((p) => (
+                <div key={p.id} className="studio-card border rounded bg-white p-4 space-y-4">
                   {/* Nom / Rôle */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-2">
@@ -444,7 +461,7 @@ function LibraryContent() {
                       <div className="text-sm font-medium">Missions (bullets)</div>
 
                       <div className="flex items-center gap-2 flex-wrap">
-                        <button
+                        {AI_AVAILABLE && <button
                           className="border rounded px-3 py-1 text-sm"
                           type="button"
                           disabled={!!aiBusyById[p.id] || (p.bullets ?? []).every((b) => !b.trim())}
@@ -462,9 +479,9 @@ function LibraryContent() {
                           }
                         >
                           {aiBusyById[p.id] ? "IA..." : "✨ Améliorer"}
-                        </button>
+                        </button>}
 
-                        <button
+                        {AI_AVAILABLE && <button
                           className="border rounded px-3 py-1 text-sm"
                           type="button"
                           disabled={!!aiBusyById[p.id] || (p.bullets ?? []).every((b) => !b.trim())}
@@ -482,7 +499,7 @@ function LibraryContent() {
                           }
                         >
                           ✨ 1 page
-                        </button>
+                        </button>}
 
                         <button
                           className="border rounded px-3 py-1 text-sm"
@@ -538,19 +555,19 @@ function LibraryContent() {
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="font-medium">Compétences</div>
-            <button className="border rounded px-3 py-2 text-sm" onClick={addSkill} type="button">
+            <button className="border rounded px-3 py-2 text-sm" onClick={() => addEntry(addSkill)} type="button">
               + Ajouter une compétence
             </button>
           </div>
 
           {(state.skills ?? []).length === 0 ? (
-            <div className="border rounded bg-white p-4 text-gray-600">
+            <div className="studio-card border rounded bg-white p-4 text-gray-600">
               Aucune compétence. Clique sur “Ajouter une compétence”.
             </div>
           ) : (
             <div className="space-y-3">
-              {(state.skills ?? []).map((s) => (
-                <div key={s.id} className="border rounded bg-white p-4">
+              {results.skills.map((s) => (
+                <div key={s.id} className="studio-card border rounded bg-white p-4">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
                     <div className="space-y-2 md:col-span-2">
                       <div className="text-sm font-medium">Compétence</div>
@@ -590,19 +607,19 @@ function LibraryContent() {
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="font-medium">Loisirs</div>
-            <button className="border rounded px-3 py-2 text-sm" onClick={addHobby} type="button">
+            <button className="border rounded px-3 py-2 text-sm" onClick={() => addEntry(addHobby)} type="button">
               + Ajouter un loisir
             </button>
           </div>
 
           {(state.hobbies ?? []).length === 0 ? (
-            <div className="border rounded bg-white p-4 text-gray-600">
+            <div className="studio-card border rounded bg-white p-4 text-gray-600">
               Aucun loisir. Clique sur “Ajouter un loisir”.
             </div>
           ) : (
             <div className="space-y-3">
-              {(state.hobbies ?? []).map((h) => (
-                <div key={h.id} className="border rounded bg-white p-4">
+              {results.hobbies.map((h) => (
+                <div key={h.id} className="studio-card border rounded bg-white p-4">
                   <div className="flex gap-3 items-center">
                     <div className="flex-1">
                       <div className="text-sm font-medium mb-2">Loisir</div>

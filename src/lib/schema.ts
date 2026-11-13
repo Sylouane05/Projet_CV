@@ -6,8 +6,8 @@ export const TagSchema = z.string().min(1);
 
 export const EducationItemSchema = z.object({
   id: z.string(),
-  school: z.string().min(1).default(""),
-  degree: z.string().min(1).default(""),
+  school: z.string().default(""),
+  degree: z.string().default(""),
   city: z.string().optional().default(""),
   startDate: z.string().optional().default(""),
   endDate: z.string().optional().default(""),
@@ -16,13 +16,13 @@ export const EducationItemSchema = z.object({
 
 export const LanguageItemSchema = z.object({
   id: z.string(),
-  name: z.string().min(1).default(""),
+  name: z.string().default(""),
   level: z.string().optional().default(""),
 });
 
 export const CertificationItemSchema = z.object({
   id: z.string(),
-  name: z.string().min(1).default(""),
+  name: z.string().default(""),
   issuer: z.string().optional().default(""),
   year: z.string().optional().default(""),
 });
@@ -98,7 +98,7 @@ export const ResumeVisibilitySchema = z.object({
 });
 
 export const ResumeSettingsSchema = z.object({
-  accentColor: z.string().default("#2563eb"),
+  accentColor: z.string().default("#183a3c"),
   font: z.string().default("inter"),
   density: z.enum(["compact", "normal", "airy"]).default("normal"),
   skillLevels: z.boolean().default(false),

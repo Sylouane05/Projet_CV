@@ -3,8 +3,8 @@ import { AppStateSchema, type AppState } from "./schema";
 
 export const DEFAULT_STATE: AppState = AppStateSchema.parse({
   profile: {
-    fullName: "Ton Nom",
-    headline: "Étudiant ingénieur ISEN – Recherche stage PFE (6 mois)",
+    fullName: "",
+    headline: "",
     city: "",
     mobility: "",
     email: "",
@@ -32,7 +32,7 @@ export const DEFAULT_STATE: AppState = AppStateSchema.parse({
       atsKeywords: [],
       sectionOrder: ["SUMMARY", "SKILLS", "EXPERIENCE", "PROJECTS", "EDUCATION", "LANGUAGES", "CERTS", "HOBBIES"],
       settings: {
-        accentColor: "#2563eb",
+        accentColor: "#183a3c",
         font: "inter",
         density: "normal",
         skillLevels: false,
@@ -200,8 +200,9 @@ export async function importBundle(bundle: unknown, scope: string | null = getSt
   const db = await getDb(scope);
   const tx = db.transaction(["assets", "app_state"], "readwrite");
   const previous = await tx.objectStore("app_state").get("main");
+  const existingPhoto = photoId && cleanRevision !== undefined ? await tx.objectStore("assets").get(photoId) : null;
   const writes: Promise<unknown>[] = [tx.objectStore("app_state").put({ json: finalState, revision: cleanRevision ?? previous?.revision ?? null, dirty: cleanRevision === undefined }, "main")];
-  if (photo && blob) writes.push(tx.objectStore("assets").put({
+  if (photo && blob && !existingPhoto?.blob) writes.push(tx.objectStore("assets").put({
     id: photo.id, type: "photo", blob, mime: blob.type, createdAt: Date.now(),
   }));
   await Promise.all([...writes, tx.done]);

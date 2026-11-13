@@ -1,6 +1,9 @@
 "use client";
 
 import { useMemo, useRef, useState } from "react";
+import StudioPageHeader from "@/components/StudioPageHeader";
+import { ChevronDown, Download, FolderArchive } from "lucide-react";
+import { useDialog } from "@/components/DialogProvider";
 import { useAppStore } from "@/store/app-store";
 import ResponsiveResumePreview from "@/components/ResponsiveResumePreview";
 import { getStorageScope } from "@/lib/db";
@@ -21,6 +24,7 @@ function downloadJson(filename: string, data: unknown) {
 }
 
 export default function ExportPage() {
+  const { confirm } = useDialog();
   const { state, loading, activeVariantId, replaceState } = useAppStore();
 
   const [busyPdf, setBusyPdf] = useState(false);
@@ -47,9 +51,21 @@ export default function ExportPage() {
       const el = document.getElementById("resume-a4");
       if (!el) throw new Error("L’aperçu du CV n’est pas encore disponible.");
 
+      const scope = getStorageScope();
+      const version = el.dataset.resumeVersion;
+      const stillCurrent = () => document.getElementById("resume-a4") === el && el.dataset.variantId === variantId && el.dataset.resumeVersion === version && getStorageScope() === scope;
+      const timeout = Date.now() + 8000;
+      while (el.dataset.assetsReady === "false") {
+        if (!stillCurrent()) throw new Error("Le CV a changé pendant la préparation. Relance l’export.");
+        if (Date.now() > timeout) throw new Error("Les images ne sont pas encore prêtes. Patiente un instant puis réessaie.");
+        await new Promise((resolve) => setTimeout(resolve, 80));
+      }
+      if (el.dataset.assetsError) throw new Error(el.dataset.assetsError);
       await document.fonts.ready;
       const images = Array.from(el.querySelectorAll("img"));
-      await Promise.all(images.map((img) => img.decode().catch(() => undefined)));
+      try { await Promise.all(images.map((img) => img.decode())); }
+      catch { throw new Error("Une image du CV est illisible. Remplace-la dans ton profil puis réessaie."); }
+      if (!stillCurrent()) throw new Error("Le CV a changé pendant la préparation. Relance l’export.");
       window.print();
 
       setMsg({ type: "ok", text: "Dans la fenêtre d’impression, choisis « Enregistrer au format PDF »." });
@@ -91,15 +107,13 @@ export default function ExportPage() {
   async function onImportFile(file: File | null) {
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) { setMsg({ type: "err", text: "Le fichier dépasse la limite de 10 Mo." }); return; }
-    if (!window.confirm("Remplacer toutes tes données par cette sauvegarde ? Pense à exporter tes données actuelles avant de continuer.")) {
-      if (fileRef.current) fileRef.current.value = "";
-      return;
-    }
     setMsg(null);
     setBusyData(true);
 
+    const scope = getStorageScope();
     try {
-      const scope = getStorageScope();
+      if (!await confirm({ title: "Restaurer cette sauvegarde ?", description: `Le fichier « ${file.name} » remplacera toutes les données du CV actuel. Exporte ton CV avant de continuer si tu souhaites le conserver.`, confirmLabel: "Restaurer la sauvegarde", destructive: true })) return;
+      if (scope !== getStorageScope()) throw new Error("Le compte a changé pendant la confirmation. Réessaie.");
       const text = await file.text();
       const json = JSON.parse(text);
 
@@ -117,14 +131,13 @@ export default function ExportPage() {
   }
 
   return (
-    <div data-export-page className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold">Export</h1>
+    <div data-export-page className="studio-page export-page">
+      <StudioPageHeader eyebrow="04 / LA PROCHAINE ÉTAPE" title="Prêt à faire la différence." description="Votre parcours est prêt à rencontrer sa prochaine opportunité.">
 
-        <button className="border rounded px-3 py-2 bg-white" onClick={downloadPdf} disabled={busyPdf}>
-          {busyPdf ? "Génération..." : "Exporter en PDF"}
+        <button className="studio-primary" onClick={downloadPdf} disabled={busyPdf}>
+          <Download size={16} aria-hidden="true" />{busyPdf ? "Préparation…" : "Exporter en PDF"}
         </button>
-      </div>
+      </StudioPageHeader>
 
       {msg ? (
         <div
@@ -137,8 +150,8 @@ export default function ExportPage() {
       ) : null}
 
       {/* ✅ Backup / Restore */}
-      <div className="border rounded bg-white p-4 space-y-3">
-        <div className="font-medium">Sauvegarde / Restauration</div>
+      <details className="studio-card studio-disclosure export-backup-card border rounded bg-white p-4 space-y-3">
+        <summary><FolderArchive size={17} aria-hidden="true" /><span>Vos sauvegardes<small>Exporter ou restaurer vos données.</small></span><ChevronDown size={16} aria-hidden="true" /></summary>
         <div className="text-sm text-gray-600">
           Exporte toutes tes infos (profil, expériences, projets, compétences, loisirs, variants + photo) dans un fichier
           <span className="font-medium"> .json</span> et importe-le quand tu veux.
@@ -175,10 +188,10 @@ export default function ExportPage() {
         <div className="text-xs text-gray-500">
           ⚠️ L’import remplace tes données actuelles (backup complet).
         </div>
-      </div>
+      </details>
 
       {/* Preview */}
-      <div data-print-area className="min-w-0 border rounded bg-gray-100 p-2 sm:p-4">
+      <div data-print-area className="export-preview-stage min-w-0 border rounded bg-gray-100 p-2 sm:p-4">
         <ResponsiveResumePreview state={state} variantId={variantId} />
       </div>
 

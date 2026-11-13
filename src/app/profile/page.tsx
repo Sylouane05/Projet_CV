@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import StudioPageHeader from "@/components/StudioPageHeader";
+import { AI_AVAILABLE } from "@/lib/features";
+import ProfileAside from "@/components/ProfileAside";
+import { Award, GraduationCap, Languages, Sparkles, Upload, UserRound } from "lucide-react";
+import { useDialog } from "@/components/DialogProvider";
+import { getStorageScope } from "@/lib/db";
 import { useAppStore } from "@/store/app-store";
 import type { CertificationItem, EducationItem, LanguageItem } from "@/lib/schema";
 import { savePhoto, loadPhoto, deleteAsset } from "@/lib/storage";
@@ -12,6 +18,7 @@ function LinkChips({
   links: string[];
   onChange: (next: string[]) => void;
 }) {
+  const linksId = useId();
   const [draft, setDraft] = useState("");
 
   const normalized = useMemo(() => links.map((x) => x.trim()).filter(Boolean), [links]);
@@ -42,7 +49,7 @@ function LinkChips({
 
   return (
     <div className="space-y-2">
-      <label className="text-sm font-medium">Liens (GitHub, Portfolio, Site)</label>
+      <label htmlFor={linksId} className="text-sm font-medium">Vos liens (GitHub, portfolio, site)</label>
 
       <div className="flex flex-wrap gap-2">
         {normalized.map((l, i) => (
@@ -60,6 +67,7 @@ function LinkChips({
 
       <input
         className="border rounded px-3 py-2 w-full"
+        id={linksId}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         placeholder="Colle un lien puis Entrée (ex: https://github.com/..., https://ton-site.fr)"
@@ -80,6 +88,8 @@ function LinkChips({
 }
 
 export default function ProfilePage() {
+  const { notify } = useDialog();
+  const photoInput = useRef<HTMLInputElement>(null);
   // ✅ Hook store (toujours appelé)
   const { state, loading, updateProfile } = useAppStore();
 
@@ -120,11 +130,12 @@ export default function ProfilePage() {
   async function onPickPhoto(file: File) {
     if (!profile) return;
 
+    const scope = getStorageScope();
     try {
       const assetId = await savePhoto(file);
-      updateProfile({ photoAssetId: assetId });
+      if (scope === getStorageScope()) updateProfile({ photoAssetId: assetId });
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : "Impossible d’enregistrer la photo.");
+      await notify({ title: "La photo n’a pas pu être ajoutée", description: error instanceof Error ? error.message : "Impossible d’enregistrer la photo. Réessaie avec une autre image.", confirmLabel: "J’ai compris" });
     }
   }
 
@@ -189,8 +200,8 @@ export default function ProfilePage() {
       ...(profile.education ?? []),
       {
         id: crypto.randomUUID(),
-        school: "École / Université",
-        degree: "Diplôme / Programme",
+        school: "",
+        degree: "",
         city: "",
         startDate: "",
         endDate: "",
@@ -216,7 +227,7 @@ export default function ProfilePage() {
     if (!profile) return;
     const next: LanguageItem[] = [
       ...(profile.languages ?? []),
-      { id: crypto.randomUUID(), name: "Anglais", level: "B2" },
+      { id: crypto.randomUUID(), name: "", level: "" },
     ];
     updateProfile({ languages: next });
   }
@@ -237,7 +248,7 @@ export default function ProfilePage() {
     if (!profile) return;
     const next: CertificationItem[] = [
       ...(profile.certifications ?? []),
-      { id: crypto.randomUUID(), name: "Certification", issuer: "", year: "" },
+      { id: crypto.randomUUID(), name: "", issuer: "", year: "" },
     ];
     updateProfile({ certifications: next });
   }
@@ -258,38 +269,33 @@ export default function ProfilePage() {
   if (loading || !profile) return <div>Chargement…</div>;
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Profil</h1>
+    <div className="studio-page">
+      <StudioPageHeader eyebrow="01 / VOTRE PROFIL" title="Tout commence par vous." description="Les bonnes informations, pour un CV qui vous ressemble." action={{label:"Composer mon CV",href:"/resume"}} />
+      <div className="profile-layout"><div className="profile-form-sections space-y-5">
 
       {/* Infos de base */}
-      <div className="border rounded bg-white p-4 space-y-4">
+      <section id="personal-info" className="studio-card border rounded bg-white p-4 space-y-5">
+        <div className="studio-section-title"><span className="studio-icon-box"><UserRound size={19} aria-hidden="true" /></span><div><h2>Faisons les présentations</h2><p>Les informations qui vous rendent reconnaissable.</p></div><span className="studio-section-number">01</span></div>
         {/* PHOTO */}
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="w-20 h-20 shrink-0 rounded-full overflow-hidden border bg-gray-50 flex items-center justify-center">
+        <div className="profile-photo-row flex flex-wrap items-center gap-4">
+          <div className="w-20 h-20 shrink-0 rounded-2xl overflow-hidden border bg-gray-50 flex items-center justify-center">
             {photoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={photoUrl} alt="Photo" className="w-full h-full object-cover" />
             ) : (
-              <div className="text-xs text-gray-500">Aucune photo</div>
+              <UserRound size={30} strokeWidth={1.2} className="text-[#829989]" aria-label="Photo de profil" />
             )}
           </div>
 
           <div className="space-y-2">
             <label className="text-sm font-medium block">Photo</label>
             <div className="flex gap-2">
-              <label className="border rounded px-3 py-2 text-sm bg-white cursor-pointer">
-                Choisir…
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) void onPickPhoto(f);
-                    e.currentTarget.value = "";
-                  }}
-                />
-              </label>
+              <button type="button" className="border rounded px-3 py-2 text-sm bg-white" onClick={() => photoInput.current?.click()}><Upload size={14} aria-hidden="true" />{photoUrl ? "Changer la photo" : "Ajouter une photo"}</button>
+              <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" aria-label="Choisir une photo de profil" onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void onPickPhoto(file);
+                event.currentTarget.value = "";
+              }} />
 
               <button
                 type="button"
@@ -300,61 +306,67 @@ export default function ProfilePage() {
                 Supprimer
               </button>
             </div>
-            <div className="text-xs text-gray-500">Format conseillé : carré, bonne lumière.</div>
+            <div className="text-xs text-gray-500">JPG, PNG ou WebP · 5 Mo maximum.</div>
           </div>
         </div>
 
         {/* Champs base */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium">Nom complet</label>
+            <label htmlFor="profile-fullname" className="text-sm font-medium">Nom complet</label>
             <input
               className="border rounded px-3 py-2 w-full"
+              id="profile-fullname"
               value={profile.fullName}
               onChange={(e) => updateProfile({ fullName: e.target.value })}
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Headline</label>
+            <label htmlFor="profile-headline" className="text-sm font-medium">Intitulé professionnel</label>
             <input
               className="border rounded px-3 py-2 w-full"
+              id="profile-headline"
               value={profile.headline}
               onChange={(e) => updateProfile({ headline: e.target.value })}
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Email</label>
+            <label htmlFor="profile-email" className="text-sm font-medium">Email</label>
             <input
               className="border rounded px-3 py-2 w-full"
+              id="profile-email"
               value={profile.email ?? ""}
               onChange={(e) => updateProfile({ email: e.target.value })}
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Téléphone</label>
+            <label htmlFor="profile-phone" className="text-sm font-medium">Téléphone</label>
             <input
               className="border rounded px-3 py-2 w-full"
+              id="profile-phone"
               value={profile.phone ?? ""}
               onChange={(e) => updateProfile({ phone: e.target.value })}
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Ville</label>
+            <label htmlFor="profile-city" className="text-sm font-medium">Ville</label>
             <input
               className="border rounded px-3 py-2 w-full"
+              id="profile-city"
               value={profile.city ?? ""}
               onChange={(e) => updateProfile({ city: e.target.value })}
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Mobilité</label>
+            <label htmlFor="profile-mobility" className="text-sm font-medium">Mobilité</label>
             <input
               className="border rounded px-3 py-2 w-full"
+              id="profile-mobility"
               value={profile.mobility ?? ""}
               onChange={(e) => updateProfile({ mobility: e.target.value })}
               placeholder="Ex: France, télétravail, PACA…"
@@ -363,16 +375,16 @@ export default function ProfilePage() {
 
           {/* LinkedIn username */}
           <div className="space-y-2 md:col-span-2">
-            <label className="text-sm font-medium">LinkedIn (username ou nom)</label>
+            <label htmlFor="profile-linkedin" className="text-sm font-medium">Identifiant LinkedIn</label>
             <input
               className="border rounded px-3 py-2 w-full"
-              value={(profile as any).linkedinUsername ?? ""}
+              id="profile-linkedin"
+              value={profile.linkedinUsername ?? ""}
               onChange={(e) => updateProfile({ linkedinUsername: e.target.value })}
-              placeholder="Ex: sylouane-moussahmboumbe"
+              placeholder="Ex. alexandre-dupont"
             />
             <div className="text-xs text-gray-500">
-              Mets uniquement la partie après <span className="font-medium">/in/</span> (sans https://). Le CV affichera
-              ce que tu saisis + un QR code.
+              La partie après <span className="font-medium">/in/</span> dans votre lien LinkedIn. Un lien et un QR code seront ajoutés au CV.
             </div>
           </div>
         </div>
@@ -380,41 +392,42 @@ export default function ProfilePage() {
         <LinkChips links={profile.links ?? []} onChange={(next) => updateProfile({ links: next })} />
 
         {/* Résumé + IA */}
-        <div className="space-y-2">
+        <div id="profile-summary" className="profile-summary-section space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <label className="text-sm font-medium">Résumé (2–4 lignes)</label>
-            <button
+            <label htmlFor="profile-summary-input" className="text-sm font-medium">Votre présentation</label>
+            {AI_AVAILABLE && <button
               type="button"
               className="border rounded px-3 py-1 text-sm bg-white"
               disabled={summaryBusy || !(profile.summary ?? "").trim()}
               onClick={improveSummary}
             >
-              {summaryBusy ? "IA..." : "✨ Améliorer"}
-            </button>
+              <Sparkles size={13} aria-hidden="true" />{summaryBusy ? "Amélioration…" : "Améliorer le texte"}
+            </button>}
           </div>
 
           {summaryMsg && <div className="text-xs text-gray-600">{summaryMsg}</div>}
 
           <textarea
             className="border rounded px-3 py-2 w-full min-h-[90px]"
+            id="profile-summary-input"
             value={profile.summary ?? ""}
             onChange={(e) => updateProfile({ summary: e.target.value })}
-            placeholder="Ex: Élève ingénieur ISEN (E-santé), orienté IA et capteurs…"
+            placeholder="Votre spécialité, votre objectif et ce que vous apportez, en quelques phrases."
           />
         </div>
-      </div>
+      </section>
 
       {/* Éducation */}
-      <div className="border rounded bg-white p-4 space-y-3">
+      <div id="profile-education" className="studio-card border rounded bg-white p-4 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="font-medium">Éducation</div>
+          <div className="studio-section-title"><span className="studio-icon-box"><GraduationCap size={18} aria-hidden="true" /></span><div><h2>Formation</h2><p>Votre parcours académique, vos diplômes et vos spécialisations.</p></div></div>
           <button type="button" className="border rounded px-3 py-2 text-sm bg-white" onClick={addEducation}>
             + Ajouter
           </button>
         </div>
 
         {(profile.education ?? []).length === 0 ? (
-          <div className="text-sm text-gray-600">Aucune entrée.</div>
+          <div className="studio-empty-line">Ajoutez votre première entrée pour enrichir votre profil.</div>
         ) : (
           <div className="space-y-3">
             {(profile.education ?? []).map((edu) => (
@@ -473,16 +486,16 @@ export default function ProfilePage() {
       </div>
 
       {/* Langues */}
-      <div className="border rounded bg-white p-4 space-y-3">
+      <div id="profile-languages" className="studio-card border rounded bg-white p-4 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="font-medium">Langues</div>
+          <div className="studio-section-title"><span className="studio-icon-box"><Languages size={18} aria-hidden="true" /></span><div><h2>Langues</h2><p>Ouvrez votre profil à de nouvelles possibilités.</p></div></div>
           <button type="button" className="border rounded px-3 py-2 text-sm bg-white" onClick={addLanguage}>
             + Ajouter
           </button>
         </div>
 
         {(profile.languages ?? []).length === 0 ? (
-          <div className="text-sm text-gray-600">Aucune entrée.</div>
+          <div className="studio-empty-line">Ajoutez votre première entrée pour enrichir votre profil.</div>
         ) : (
           <div className="space-y-2">
             {(profile.languages ?? []).map((lang) => (
@@ -513,16 +526,16 @@ export default function ProfilePage() {
       </div>
 
       {/* Certifications */}
-      <div className="border rounded bg-white p-4 space-y-3">
+      <div id="profile-certifications" className="studio-card border rounded bg-white p-4 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="font-medium">Certifications</div>
+          <div className="studio-section-title"><span className="studio-icon-box"><Award size={18} aria-hidden="true" /></span><div><h2>Certifications</h2><p>Les acquis qui font la différence.</p></div></div>
           <button type="button" className="border rounded px-3 py-2 text-sm bg-white" onClick={addCert}>
             + Ajouter
           </button>
         </div>
 
         {(profile.certifications ?? []).length === 0 ? (
-          <div className="text-sm text-gray-600">Aucune entrée.</div>
+          <div className="studio-empty-line">Ajoutez votre première entrée pour enrichir votre profil.</div>
         ) : (
           <div className="space-y-2">
             {(profile.certifications ?? []).map((c) => (
@@ -558,6 +571,7 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+      </div><ProfileAside /></div>
     </div>
   );
 }

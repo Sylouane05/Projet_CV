@@ -6,7 +6,9 @@
     "dev": "cross-env NEXT_DISABLE_TURBOPACK=1 next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "build:hosting": "node scripts/build-hosting.cjs",
+    "deploy:hosting": "npm run build:hosting && firebase deploy --only hosting --project cv-builder-214cb"
   },
   "dependencies": {
     "firebase": "^13.3.0",

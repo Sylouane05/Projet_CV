@@ -2,6 +2,31 @@ import type { AppState } from "./schema";
 import type { ExportBundle } from "./storage";
 import type { CloudPhoto } from "./cloud-backup";
 
+export function syncErrorMessage(error: unknown): string {
+  const code = (error as { code?: string } | null)?.code;
+  switch (code) {
+    case "storage/retry-limit-exceeded":
+      return "Le transfert de la photo a dépassé le délai autorisé. La synchronisation en ligne n’a pas abouti. Vérifie la connexion et la configuration Firebase Storage, puis réessaie.";
+    case "storage/bucket-not-found":
+    case "storage/project-not-found":
+    case "storage/no-default-bucket":
+      return "Le stockage des photos n’est pas configuré. Vérifie l’activation de Firebase Storage et le nom du bucket du projet.";
+    case "storage/quota-exceeded":
+      return "Le stockage des photos est indisponible. Vérifie le quota et le forfait du projet Firebase.";
+    case "storage/unauthorized":
+      return "Le transfert de la photo est refusé. Vérifie les règles d’accès de Firebase Storage.";
+    case "storage/unauthenticated":
+      return "Reconnecte-toi pour synchroniser la photo.";
+    case "permission-denied":
+      return "La sauvegarde en ligne est refusée. Vérifie les règles d’accès de Firestore.";
+    case "unavailable":
+    case "auth/network-request-failed":
+      return "La connexion au service est interrompue. Vérifie ton accès à Internet, puis réessaie.";
+    default:
+      return error instanceof Error ? error.message : "La synchronisation en ligne est indisponible. Réessaie dans quelques instants.";
+  }
+}
+
 export type SyncPhase = "loading" | "local" | "pending" | "saving" | "saved" | "error" | "conflict";
 export type Account = { uid: string; email: string | null };
 type Remote = { bundle: ExportBundle; revision: string; photo: CloudPhoto };
@@ -74,7 +99,7 @@ export class SyncEngine {
       this.show(remote ? "saved" : "local");
     } catch (error) {
       if (epoch !== this.epoch) return;
-      this.error = error instanceof Error ? error.message : "Connexion impossible. Tes modifications locales sont conservées.";
+      this.error = syncErrorMessage(error);
       this.show("error");
     }
   }
@@ -115,7 +140,7 @@ export class SyncEngine {
       if (epoch !== this.epoch) return;
       clearTimeout(this.timer);
       this.ready = false;
-      this.error = error instanceof Error ? error.message : "Sauvegarde en ligne impossible. Le CV reste sur cet appareil.";
+      this.error = syncErrorMessage(error);
       this.show(this.deps.isConflict(error) ? "conflict" : "error");
     } finally { if (this.writingEpoch === epoch) this.writingEpoch = null; }
   }
